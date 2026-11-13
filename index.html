@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>근무표 자동배정기</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    background: #F7F8FB;
+    color: #1E2530;
+    padding: 28px 28px 60px;
+  }
+  button { cursor: pointer; font-family: inherit; }
+  input, select { font-family: inherit; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  ::-webkit-scrollbar { height: 10px; width: 10px; }
+  ::-webkit-scrollbar-thumb { background: #C7CEDA; border-radius: 6px; }
+
+  header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px; margin-bottom: 18px; }
+  .eyebrow { font-size: 11px; letter-spacing: .14em; color: #8B93A1; font-weight: 700; }
+  h1 { font-size: 26px; font-weight: 800; margin: 4px 0 2px; color: #141922; }
+  .sub { font-size: 13px; color: #6B7280; margin: 0; }
+  .month-picker { display: flex; gap: 8px; }
+  select { padding: 8px 10px; border-radius: 8px; border: 1px solid #DDE1E8; background: #fff; font-size: 13px; color: #333; }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+  .employee-add { display: flex; gap: 8px; }
+  input[type=text] { padding: 9px 12px; border-radius: 8px; border: 1px solid #DDE1E8; font-size: 13px; width: 200px; background: #fff; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { padding: 9px 16px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; }
+  .btn-primary { background: #1F2937; color: #fff; }
+  .btn-primary-ghost { background: #fff; color: #1F2937; border: 1px solid #1F2937; font-weight: 600; }
+  .btn-ghost { background: #fff; color: #4B5563; border: 1px solid #DDE1E8; font-weight: 400; }
+  .btn-ghost-danger { background: #fff; color: #B23A3A; border: 1px solid #F0C6C6; font-weight: 400; }
+
+  .rules-panel { background: #fff; border: 1px solid #E7E9EF; border-radius: 12px; padding: 16px; margin-bottom: 14px; display: none; }
+  .rules-panel.open { display: block; }
+  .rules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 18px; }
+  .rules-label { font-size: 12px; font-weight: 700; color: #4B5563; margin-bottom: 8px; }
+  .rules-row { display: flex; gap: 8px; }
+  .num-label { font-size: 11px; color: #8B93A1; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .num-input { width: 44px; padding: 4px 6px; border-radius: 6px; border: 1px solid #DDE1E8; text-align: center; }
+  .num-input-wide { width: 70px; padding: 6px 8px; border-radius: 6px; border: 1px solid #DDE1E8; text-align: center; }
+  .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #4B5563; }
+
+  .legend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .legend-chip { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+  .legend-note { font-size: 11px; color: #9AA1AC; margin-left: 8px; }
+
+  .brush-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: #fff; border: 1px solid #E7E9EF; border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; }
+  .brush-label { font-size: 12px; font-weight: 700; color: #4B5563; }
+  .brush-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .brush-chip { font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 2px solid transparent; }
+  .brush-chip.active { border-color: #1F2937; box-shadow: 0 0 0 2px rgba(31,41,55,0.12); }
+  .brush-hint { font-size: 11px; color: #9AA1AC; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid #E7E9EF; border-radius: 12px; background: #fff; user-select: none; }
+  .quick-btn { border: none; background: transparent; color: #9AA1AC; font-size: 12px; padding: 0 2px; }
+  .quick-btn:hover { color: #1F2937; }
+  th.name, td.name { position: sticky; left: 0; background: #F6F7FA; z-index: 1; min-width: 96px; }
+  td.name { background: #fff; display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; border-bottom: 1px solid #F0F1F4; }
+  th.name { padding: 10px 12px; text-align: left; font-size: 12px; color: #4B5563; border-bottom: 1px solid #E7E9EF; }
+  th.day { padding: 8px 4px; text-align: center; font-size: 12px; font-weight: 700; border-bottom: 1px solid #E7E9EF; min-width: 30px; }
+  th.day small { font-size: 10px; display: block; }
+  th.total { padding: 8px 6px; text-align: center; font-size: 11px; color: #8B93A1; border-bottom: 1px solid #E7E9EF; background: #F6F7FA; }
+  td.cell { padding: 3px; text-align: center; border-bottom: 1px solid #F0F1F4; }
+  .cell-btn { width: 28px; height: 28px; border-radius: 6px; font-size: 11px; font-weight: 700; border: 1px dashed rgba(0,0,0,.10); transition: transform .06s ease; }
+  .cell-btn:active { transform: scale(.92); }
+  td.total-cell { padding: 6px 4px; text-align: center; font-size: 11px; color: #4B5563; border-bottom: 1px solid #F0F1F4; background: #FBFBFD; }
+  .remove-btn { border: none; background: transparent; color: #C7CEDA; font-size: 14px; line-height: 1; }
+  tfoot td.foot-label { position: sticky; left: 0; background: #F6F7FA; padding: 6px 12px; font-size: 11px; font-weight: 700; color: #4B5563; }
+  tfoot td.foot { padding: 4px 2px; text-align: center; font-size: 10px; }
+  .empty-row { padding: 24px; text-align: center; color: #9AA1AC; font-size: 13px; }
+
+  .auth-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #fff; border: 1px solid #E7E9EF; border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; font-size: 12px; color: #4B5563; }
+  .auth-bar input { padding: 7px 10px; border-radius: 8px; border: 1px solid #DDE1E8; font-size: 12px; width: 180px; }
+  .auth-bar .btn { padding: 7px 12px; font-size: 12px; }
+  .auth-status { font-weight: 700; color: #141922; }
+  .auth-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #C7CEDA; }
+  .auth-dot.on { background: #2BA672; }
+  .role-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: #E7EFFB; color: #2A5AA8; margin-left: 4px; }
+  .role-tag.deputy { background: #FDE9C8; color: #8A5A00; }
+  .rules-select { padding: 6px 8px; border-radius: 6px; border: 1px solid #DDE1E8; font-size: 12px; min-width: 110px; background: #fff; }
+  .rules-help { font-size: 11px; color: #9AA1AC; margin-top: 6px; line-height: 1.4; }
+
+  .req-panel { background: #fff; border: 1px solid #E7E9EF; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+  .req-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .req-row input[type=text] { width: min(460px, 100%); }
+  .req-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .req-chip { display: inline-flex; align-items: center; gap: 6px; background: #F1F4F9; border-radius: 999px; padding: 5px 6px 5px 12px; font-size: 12px; }
+  .req-chip small { color: #6B7280; }
+  .req-chip button { border: none; background: transparent; color: #9AA1AC; font-size: 14px; line-height: 1; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1F2937; color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.18); display: none; }
+
+  /* ---- 직원별 가능 근무 ---- */
+  .emp-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #F0F1F4; flex-wrap: wrap; }
+  .emp-row .nm { min-width: 84px; font-size: 13px; font-weight: 600; }
+  .shift-chip { font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 999px; border: 2px solid transparent; opacity: .3; }
+  .shift-chip.on { opacity: 1; border-color: rgba(0,0,0,.15); }
+
+  /* ---- 화면 비율/모바일 ---- */
+  html { -webkit-text-size-adjust: 100%; }
+  body { overflow-x: hidden; }
+  button { touch-action: manipulation; }
+  .table-wrap { -webkit-overflow-scrolling: touch; }
+  .table-wrap.brush-on .cell-btn { touch-action: none; }
+  #scheduleTable { width: max-content; min-width: 100%; }
+  td.name { display: table-cell; }
+  .name-inner { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  td.name { padding: 6px 10px; }
+
+  @media (max-width: 640px) {
+    body { padding: 14px 10px 48px; }
+    h1 { font-size: 21px; }
+    .sub { font-size: 12px; }
+    header { align-items: flex-start; margin-bottom: 12px; }
+    input, select { font-size: 16px !important; }   /* iOS가 입력창을 확대하지 않게 */
+    .toolbar { flex-direction: column; align-items: stretch; }
+    .employee-add { width: 100%; }
+    .employee-add input[type=text] { flex: 1; width: auto; min-width: 0; }
+    .actions { width: 100%; }
+    .actions .btn { flex: 1 1 calc(50% - 4px); padding: 10px 6px; }
+    .auth-bar, .brush-bar, .req-panel, .rules-panel { padding: 10px 12px; }
+    .auth-bar input { width: 100%; flex: 1 1 100%; }
+    #authForm { width: 100%; }
+    #authForm .btn { flex: 1; }
+    .req-row input[type=text] { width: 100%; }
+    .req-row .btn { flex: 1; }
+    .rules-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
+    .brush-hint, .legend-note { width: 100%; margin-left: 0; }
+    th.name, td.name { min-width: 74px; max-width: 92px; }
+    td.name { padding: 4px 6px; font-size: 11px; }
+    .quick-btn, .remove-btn { font-size: 11px; padding: 0 1px; }
+    th.name, td.name { max-width: 112px; }
+    .name-inner { gap: 2px; }
+    th.name { padding: 8px 6px; }
+    th.day { min-width: 26px; padding: 6px 2px; font-size: 11px; }
+    td.cell { padding: 2px; }
+    .cell-btn { width: 24px; height: 24px; font-size: 10px; border-radius: 5px; }
+    td.total-cell { padding: 4px 3px; min-width: 22px; }
+    tfoot td.foot-label { padding: 4px 6px; }
+    .emp-row .nm { min-width: 70px; }
+  }
+  #summaryBody h4 { margin: 14px 0 4px; font-size: 12px; color: #141922; }
+  #summaryBody ul { margin: 0; padding-left: 18px; font-size: 12px; color: #4B5563; line-height: 1.75; }
+
+  /* 규칙 설정 칸 겹침/넘침 방지 */
+  .rules-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .rules-grid > div { min-width: 0; }
+  .rules-help { overflow-wrap: anywhere; }
+  #weekdayRules, #weekendRules { max-width: 240px; }
+  #weekdayRules .num-label, #weekendRules .num-label { flex: 1 1 0; min-width: 0; }
+  .num-input { width: 100%; min-width: 0; }
+  @media (max-width: 640px) {
+    .rules-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rules-grid > div:nth-child(1), .rules-grid > div:nth-child(2) { grid-column: 1 / -1; }
+    #weekdayRules, #weekendRules { max-width: none; }
+  }
+  #summaryBody .hl { color: #2A5AA8; font-weight: 800; }
+  .job-input { width: 92px; padding: 5px 8px; border: 1px solid #DDE1E8; border-radius: 8px; font-size: 12px; }
+  .job-tag { font-size: 10px; color: #6B7280; background: #F1F4F9; padding: 1px 6px; border-radius: 999px; margin-left: 4px; white-space: nowrap; }
+  .job-select { padding: 5px 8px; border: 1px solid #DDE1E8; border-radius: 8px; font-size: 12px; background: #fff; min-width: 92px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="eyebrow">SHIFT SCHEDULER</div>
+    <h1>근무표 자동배정기</h1>
+    <p class="sub">휴무·연차·고정근무만 지정하면 나머지 칸을 규칙에 맞춰 채워드려요.</p>
+  </div>
+  <div class="month-picker">
+    <select id="yearSelect"></select>
+    <select id="monthSelect"></select>
+  </div>
+</header>
+
+<section class="auth-bar" id="authBar">
+  <span><span class="auth-dot" id="authDot"></span><span class="auth-status" id="authStatus">확인 중…</span></span>
+  <span id="authForm" style="display:none; gap:8px; align-items:center; flex-wrap:wrap;">
+    <input type="email" id="authEmail" placeholder="이메일" autocomplete="username" />
+    <input type="password" id="authPassword" placeholder="비밀번호 (6자 이상)" autocomplete="current-password" />
+    <button class="btn btn-primary" id="loginBtn">로그인</button>
+    <button class="btn btn-ghost" id="signupBtn">회원가입</button>
+  </span>
+  <button class="btn btn-ghost" id="logoutBtn" style="display:none;">로그아웃</button>
+  <span id="authNote" style="color:#9AA1AC;"></span>
+</section>
+
+<section class="toolbar">
+  <div class="employee-add">
+    <input type="text" id="newNameInput" placeholder="직원 이름 입력 후 추가" />
+    <button class="btn btn-primary-ghost" id="addEmployeeBtn">+ 추가</button>
+  </div>
+  <div class="actions">
+    <button class="btn btn-ghost" id="toggleEmpBtn">직원별 설정</button>
+    <button class="btn btn-ghost" id="toggleRulesBtn">규칙 설정</button>
+    <button class="btn btn-ghost" id="exportMonthBtn">엑셀 저장 (이번 달)</button>
+    <button class="btn btn-ghost" id="exportAllBtn">엑셀 저장 (저장된 모든 달)</button>
+    <button class="btn btn-ghost" id="clearAutoBtn">자동배정만 지우기</button>
+    <button class="btn btn-ghost-danger" id="clearAllBtn">전체 초기화</button>
+    <button class="btn btn-primary" id="autoFillBtn">자동배정 실행</button>
+  </div>
+</section>
+
+<section class="req-panel" id="reqPanel">
+  <span class="brush-label">배정 요청 (문장으로 입력)</span>
+  <div class="req-row">
+    <input type="text" id="reqInput" placeholder="예: 야간 2일씩 잡아줘" />
+    <button class="btn btn-primary-ghost" id="reqAddBtn">요청 추가</button>
+  </div>
+  <div class="req-chips" id="reqChips"></div>
+  <div class="rules-help">추가한 뒤 "자동배정 실행"을 누르면 반영돼요. 이렇게 적을 수 있어요 →
+    "야간 2일씩 잡아줘" · "연속 근무는 4일까지" · "주말 야간 2명" · "김서하 야간 빼줘" · "고영상은 주간만" · "고영상 16일 21일 연차 넣어줘"
+    <br>날짜를 적은 요청(연차·휴무·병가·공가)은 지금 보고 있는 달에 바로 고정돼요.
+  </div>
+</section>
+
+<section class="rules-panel" id="empPanel">
+  <div class="rules-label">직원별 설정 (직책 · 가능 근무)</div>
+  <div class="rules-help" style="margin:0 0 8px;">직책은 위 목록에서 골라요 (목록은 추가·삭제할 수 있어요). 직책은 표의 이름 옆과 엑셀 직책 칸에 들어가요. 근무 칩을 끄면(흐리게 보이면) 그 근무는 그 직원에게 배정되지 않아요. 예: D·S만 하는 직원은 E, N을 꺼 두세요.</div>
+  <div class="rules-label" style="margin-top:4px;">직책 목록</div>
+  <div class="req-chips" id="jobList" style="margin-top:6px;"></div>
+  <div class="req-row">
+    <input type="text" id="jobNewInput" placeholder="새 직책 (예: 팀장)" />
+    <button class="btn btn-ghost" id="jobAddBtn">직책 추가</button>
+  </div>
+  <div class="rules-label" style="margin-top:14px;">직원별 직책 · 가능 근무</div>
+  <div id="empShiftList"></div>
+</section>
+
+<section class="rules-panel" id="rulesPanel">
+  <div class="rules-grid">
+    <div>
+      <div class="rules-label">평일 필요인원</div>
+      <div class="rules-row" id="weekdayRules"></div>
+    </div>
+    <div>
+      <div class="rules-label">주말 필요인원</div>
+      <div class="rules-row" id="weekendRules"></div>
+    </div>
+    <div>
+      <div class="rules-label">최대 연속근무일</div>
+      <input type="number" min="1" class="num-input-wide" id="maxConsecutiveWork" />
+    </div>
+    <div>
+      <div class="rules-label">최대 연속 야간(N)</div>
+      <input type="number" min="1" class="num-input-wide" id="maxConsecutiveNight" />
+    </div>
+    <div>
+      <div class="rules-label">야간이 끝난 다음날 휴무</div>
+      <label class="check-row">
+        <input type="checkbox" id="restAfterNight" />
+        <span>야간 연속은 허용, 야간이 끝나면 다음날 휴무</span>
+      </label>
+    </div>
+    <div>
+      <div class="rules-label">문장 속 "주간"이 뜻하는 코드</div>
+      <select id="dayCode" class="rules-select">
+        <option value="D">D</option><option value="S">S</option><option value="E">E</option><option value="N">N</option>
+      </select>
+      <div class="rules-help">배정 요청 문장에 "주간"이라고 쓰면 어떤 코드(D·S·E·N)로 볼지 정해요. 기본값은 S</div>
+    </div>
+    <div>
+      <div class="rules-label">근무 사이 최소 휴식시간</div>
+      <input type="number" min="0" max="24" class="num-input-wide" id="minRestHours" /> 시간
+    </div>
+    <div>
+      <div class="rules-label">엑셀 제목에 넣을 이름</div>
+      <input type="text" id="unitName" style="width:110px;" placeholder="예: 1u" />
+      <div class="rules-help">예: 1u → "2026년 7월 1u 근무표"</div>
+    </div>
+    <div style="grid-column: 1 / -1;">
+      <div class="rules-label">근무 시간대 (실제 근무 시간에 맞게 고쳐 주세요)</div>
+      <div class="rules-row" id="shiftTimesBox" style="flex-wrap:wrap; gap:18px;"></div>
+      <div class="rules-help" id="restInfo"></div>
+    </div>
+    <div style="grid-column: 1 / -1;">
+      <div class="rules-label">휴무 보장 (그 달 휴일 수만큼)</div>
+      <label class="check-row">
+        <input type="checkbox" id="guaranteeOff" />
+        <span>직원마다 휴무(휴)를 그 달 휴일 수 이상 보장</span>
+      </label>
+      <div class="rules-help" id="holidayInfo"></div>
+      <div class="rules-row" style="margin-top:8px; align-items:center; flex-wrap:wrap;">
+        <span style="font-size:12px; color:#4B5563;">평일 공휴일 날짜</span>
+        <input type="text" id="holidayInput" placeholder="예: 17 또는 5,25" style="width:150px;" />
+        <button class="btn btn-ghost" id="holidayResetBtn">기본값으로</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="brush-bar" id="brushBar">
+  <span class="brush-label">휴가 붓 모드</span>
+  <div class="brush-chips" id="brushChips"></div>
+  <span class="brush-hint" id="brushHint">코드를 선택한 뒤 셀을 클릭하거나 드래그하면 바로 그 값으로 채워져요. 다시 누르면 붓이 꺼지고 원래 클릭 순환 방식으로 돌아가요.</span>
+</section>
+
+<section class="legend" id="legend"></section>
+
+<div class="table-wrap">
+  <table id="scheduleTable">
+    <thead id="tableHead"></thead>
+    <tbody id="tableBody"></tbody>
+    <tfoot id="tableFoot"></tfoot>
+  </table>
+</div>
+
+<section class="rules-panel open" id="summaryPanel" style="margin-top:14px;">
+  <div class="rules-label" style="font-size:14px;">적용 중인 규칙</div>
+  <div id="summaryBody"></div>
+</section>
+
+<div id="toast"></div>
+
+<script>
+// ---------- constants ----------
+const CODES = ["", "D", "S", "E", "N", "연", "휴", "병", "공"];
+const SHIFT_TYPES = ["D", "S", "E", "N"];
+const WEEKDAY_LABEL = ["일", "월", "화", "수", "목", "금", "토"];
+const CODE_STYLE = {
+  "": { bg: "transparent", fg: "#B7BFC9" },
+  D: { bg: "#FDE9C8", fg: "#8A5A00" },
+  S: { bg: "#D9EFEA", fg: "#0F6B57" },
+  E: { bg: "#DCE6FB", fg: "#28418F" },
+  N: { bg: "#2A3350", fg: "#F4F6FB" },
+  연: { bg: "#F4DCE6", fg: "#9A2E5A" },
+  휴: { bg: "#EDEFF3", fg: "#5B6472" },
+  병: { bg: "#EFE3F7", fg: "#6A3A96" },
+  공: { bg: "#E7EEF7", fg: "#3A5A82" },
+};
+const DEFAULT_RULES = {
+  weekday: { D: 2, S: 2, E: 2, N: 1 },
+  weekend: { D: 2, S: 2, E: 2, N: 1 },
+  maxConsecutiveWork: 5,
+  restAfterNight: true,
+  maxConsecutiveNight: 3,
+  dayCode: "S",
+  guaranteeOff: true,
+  unitName: "1u",
+  minRestHours: 11,
+  shiftTimes: {
+    D: { start: "07:00", end: "15:00" },
+    S: { start: "09:00", end: "18:00" },
+    E: { start: "15:00", end: "23:00" },
+    N: { start: "23:00", end: "07:00" },
+  },
+};
+const STORAGE_KEY = "shiftSchedulerData";
+
+// ---------- helpers ----------
+function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+function dowOf(y, m, d) { return new Date(y, m - 1, d).getDay(); }
+function uid() { return Math.random().toString(36).slice(2, 10); }
+function monthKey(y, m) { return `${y}-${String(m).padStart(2, "0")}`; }
+
+// ---------- state ----------
+const today = new Date();
+let state = loadState();
+let brushCode = null; // null = 붓 꺼짐(클릭 순환 모드), "" 또는 코드 문자열 = 해당 코드로 바로 칠함
+let isPainting = false;
+
+function parseDayList(str, nDays) {
+  const days = new Set();
+  str.split(",").map((s) => s.trim()).filter(Boolean).forEach((part) => {
+    if (part.includes("-")) {
+      const [a, b] = part.split("-").map((v) => Number(v.trim()));
+      if (!isNaN(a) && !isNaN(b)) {
+        const lo = Math.min(a, b), hi = Math.max(a, b);
+        for (let i = lo; i <= hi; i++) if (i >= 1 && i <= nDays) days.add(i);
+      }
+    } else {
+      const n = Number(part);
+      if (!isNaN(n) && n >= 1 && n <= nDays) days.add(n);
+    }
+  });
+  return Array.from(days).sort((a, b) => a - b);
+}
+
+function normalizeState(parsed) {
+  const st = normalizeStateRaw(parsed);
+  delete st.rules.leadId; delete st.rules.deputyId; delete st.rules.leadWeekendOff;
+  return st;
+}
+function normalizeStateRaw(parsed) {
+  const p = parsed || {};
+  const r = p.rules || {};
+  return {
+    year: p.year || today.getFullYear(),
+    month: p.month || today.getMonth() + 1,
+    employees: p.employees || [],
+    schedules: p.schedules || {},
+    requests: p.requests || [],
+    holidays: p.holidays || {},
+    jobTitles: Array.isArray(p.jobTitles) ? p.jobTitles : ["팀장", "계장", "주임"],
+    rules: {
+      ...DEFAULT_RULES,
+      ...r,
+      weekday: { ...DEFAULT_RULES.weekday, ...(r.weekday || {}) },
+      weekend: { ...DEFAULT_RULES.weekend, ...(r.weekend || {}) },
+      shiftTimes: JSON.parse(JSON.stringify({ ...DEFAULT_RULES.shiftTimes, ...(r.shiftTimes || {}) })),
+    },
+  };
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return normalizeState(JSON.parse(raw));
+  } catch (e) { /* ignore corrupt storage */ }
+  return normalizeState(null);
+}
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (window.cloud && window.cloud.isSignedIn()) window.cloud.saveDebounced(state);
+  if (typeof renderSummary === "function") renderSummary();
+}
+// 서버에서 불러온 데이터를 화면에 적용
+window.applyRemoteState = function (remote) {
+  state = normalizeState(remote);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  renderAll();
+};
+window.getLocalState = function () { return state; };
+function currentCells() {
+  const key = monthKey(state.year, state.month);
+  if (!state.schedules[key]) state.schedules[key] = {};
+  return state.schedules[key];
+}
+
+// ---------- auto-fill algorithm ----------
+// 근무 사이 휴식시간 검사 함수 (prev 근무 → 다음날 nxt 근무)
+function makeGapOk(rules) {
+  const toH = (t) => { const p = String(t || "0:0").split(":"); return Number(p[0]) + (Number(p[1]) || 0) / 60; };
+  const times = {};
+  SHIFT_TYPES.forEach((c) => {
+    const st = rules.shiftTimes && rules.shiftTimes[c];
+    if (!st) return;
+    const sH = toH(st.start);
+    let eH = toH(st.end);
+    if (eH <= sH) eH += 24;
+    times[c] = { s: sH, e: eH };
+  });
+  const minRest = Number(rules.minRestHours) || 0;
+  return (prev, nxt) => {
+    if (!times[prev] || !times[nxt]) return true;
+    return 24 + times[nxt].s - times[prev].e >= minRest;
+  };
+}
+
+function autoFill(employees, cells, year, month, rules, extras) {
+  extras = extras || {};
+  const forbid = extras.forbid || {};
+  const only = extras.only || {};
+  const blockN = Math.max(1, extras.nightBlock || 1);
+  const reserved = {};
+  employees.forEach((e) => { reserved[e.id] = {}; });
+  const allowedMap = {};
+  employees.forEach((e) => { if (Array.isArray(e.allowed)) allowedMap[e.id] = new Set(e.allowed); });
+  const canDo = (id, shift) =>
+    !(allowedMap[id] && !allowedMap[id].has(shift)) &&
+    !(only[id] && !only[id].has(shift)) && !(forbid[id] && forbid[id].has(shift));
+  const nDays = daysInMonth(year, month);
+  const next = {};
+  const gapOk = makeGapOk(rules);
+  // 어제 근무와의 휴식시간, 내일이 직접 고정된 근무라면 그것과의 휴식시간까지 확인
+  const restOk = (id, dd, shift) => {
+    const p = dd > 1 ? next[id][dd - 1].code : "";
+    if (SHIFT_TYPES.includes(p) && !gapOk(p, shift)) return false;
+    const nx = dd < nDays ? next[id][dd + 1] : null;
+    if (nx && nx.locked && SHIFT_TYPES.includes(nx.code) && !gapOk(shift, nx.code)) return false;
+    return true;
+  };
+  employees.forEach((e) => {
+    next[e.id] = {};
+    for (let d = 1; d <= nDays; d++) {
+      const c = cells[e.id] && cells[e.id][d];
+      next[e.id][d] = c && c.locked ? { ...c } : { code: "", locked: false };
+    }
+  });
+
+  // 휴무 보장: 직원마다 자동배정으로 일할 수 있는 날의 상한
+  const requiredOff = extras.requiredOff || 0;
+  const cap = {}, autoUsed = {};
+  employees.forEach((e) => {
+    let free = 0, lockedOff = 0;
+    for (let dd = 1; dd <= nDays; dd++) {
+      const c = next[e.id][dd];
+      if (c.locked) { if (c.code === "휴") lockedOff += 1; } else free += 1;
+    }
+    cap[e.id] = Math.max(0, free - Math.max(0, requiredOff - lockedOff));
+    autoUsed[e.id] = 0;
+  });
+
+  const shiftCount = {}, totalCount = {}, consecWork = {}, consecNight = {};
+  employees.forEach((e) => {
+    shiftCount[e.id] = { D: 0, S: 0, E: 0, N: 0 };
+    totalCount[e.id] = 0;
+    consecWork[e.id] = 0;
+    consecNight[e.id] = 0;
+  });
+
+  for (let d = 1; d <= nDays; d++) {
+    const dow = dowOf(year, month, d);
+    const isWeekend = dow === 0 || dow === 6;
+    const req = isWeekend ? rules.weekend : rules.weekday;
+
+    const forcedOff = new Set();
+    if (rules.restAfterNight && d > 1) {
+      employees.forEach((e) => {
+        const y = next[e.id][d - 1];
+        if (y && y.code === "N" && !next[e.id][d].locked) forcedOff.add(e.id);
+      });
+    }
+
+    const assignedToday = new Set();
+    employees.forEach((e) => {
+      const lc = next[e.id][d];
+      if (lc.locked) {
+        assignedToday.add(e.id);
+        // 직접 고정한 근무도 형평성 집계에 포함
+        if (SHIFT_TYPES.includes(lc.code)) {
+          shiftCount[e.id][lc.code] += 1;
+          totalCount[e.id] += 1;
+        }
+      }
+    });
+
+    // 앞서 시작한 야간 묶음(예: 2일씩)의 이어지는 날
+    employees.forEach((e) => {
+      if (reserved[e.id][d] && !next[e.id][d].locked) {
+        next[e.id][d] = { code: "N", locked: false };
+        assignedToday.add(e.id);
+        forcedOff.delete(e.id);
+      }
+    });
+
+
+    SHIFT_TYPES.forEach((shift) => {
+      const already = employees.filter((e) => assignedToday.has(e.id) && next[e.id][d].code === shift).length;
+      let need = (req[shift] || 0) - already;
+      if (need <= 0) return;
+
+      let pool = employees.filter((e) => {
+        if (assignedToday.has(e.id)) return false;
+        if (forcedOff.has(e.id) && shift !== "N") return false;
+        if (!canDo(e.id, shift)) return false;
+        if (!restOk(e.id, d, shift)) return false;
+        if (autoUsed[e.id] >= cap[e.id]) return false;
+        if (shift === "N" && blockN > 1 && consecNight[e.id] > 0) return false; // 묶음 모드: 이어지는 날은 예약으로만
+        if (shift === "N" && consecNight[e.id] >= rules.maxConsecutiveNight) return false;
+        if (consecWork[e.id] >= rules.maxConsecutiveWork) return false;
+        return true;
+      });
+      if (pool.length < need) {
+        pool = employees.filter((e) => !assignedToday.has(e.id) && (shift === "N" || !forcedOff.has(e.id)) && canDo(e.id, shift) && restOk(e.id, d, shift) && autoUsed[e.id] < cap[e.id] && !(shift === "N" && blockN > 1 && consecNight[e.id] > 0));
+      }
+
+      pool.sort((a, b) => {
+        const sc = shiftCount[a.id][shift] - shiftCount[b.id][shift];
+        if (sc !== 0) return sc;
+        const pa = cap[a.id] ? autoUsed[a.id] / cap[a.id] : 1;
+        const pb = cap[b.id] ? autoUsed[b.id] / cap[b.id] : 1;
+        if (Math.abs(pa - pb) > 1e-9) return pa - pb;   // 상한 대비 덜 쓴 사람 먼저
+        const tc = totalCount[a.id] - totalCount[b.id];
+        if (tc !== 0) return tc;
+        return a.name.localeCompare(b.name);
+      });
+
+      pool.slice(0, need).forEach((e) => {
+        next[e.id][d] = { code: shift, locked: false };
+        assignedToday.add(e.id);
+        shiftCount[e.id][shift] += 1;
+        totalCount[e.id] += 1;
+        autoUsed[e.id] += 1;
+
+        // 야간을 며칠씩 묶어서 배정 (예: 2일씩)
+        if (shift === "N" && blockN > 1) {
+          for (let j = 1; j < blockN; j++) {
+            const dd = d + j;
+            if (dd > nDays) break;
+            if (consecWork[e.id] + 1 + j > rules.maxConsecutiveWork) break;
+            if (next[e.id][dd].locked) break;
+            if (!restOk(e.id, dd, "N")) break;
+            if (autoUsed[e.id] >= cap[e.id]) break;
+            const ddow = dowOf(year, month, dd);
+            const reqN = ((ddow === 0 || ddow === 6) ? rules.weekend : rules.weekday).N || 0;
+            let cnt = 0;
+            employees.forEach((x) => {
+              const c = next[x.id][dd];
+              if ((c.locked && c.code === "N") || reserved[x.id][dd]) cnt += 1;
+            });
+            if (cnt >= reqN) break;
+            reserved[e.id][dd] = true;
+            shiftCount[e.id].N += 1;
+            totalCount[e.id] += 1;
+            autoUsed[e.id] += 1;
+          }
+        }
+      });
+    });
+
+    employees.forEach((e) => {
+      if (!assignedToday.has(e.id) && !next[e.id][d].locked) {
+        next[e.id][d] = { code: "휴", locked: false };
+      }
+    });
+
+    employees.forEach((e) => {
+      const code = next[e.id][d].code;
+      if (SHIFT_TYPES.includes(code)) {
+        consecWork[e.id] += 1;
+        consecNight[e.id] = code === "N" ? consecNight[e.id] + 1 : 0;
+      } else {
+        consecWork[e.id] = 0;
+        consecNight[e.id] = 0;
+      }
+    });
+  }
+  return next;
+}
+
+// ---------- 문장 요청 해석 ----------
+const SW = "(야간|나이트|저녁|이브닝|주간|데이|[DSENdsen])";
+
+function findShift(text) {
+  if (/야간|나이트/.test(text)) return "N";
+  if (/저녁|이브닝/.test(text)) return "E";
+  if (/주간|데이/.test(text)) return "DAY";
+  const m = text.match(/(?:^|[^A-Za-z])([DSENdsen])(?![A-Za-z])/);
+  return m ? m[1].toUpperCase() : null;
+}
+
+// 반환: {type,...} | {error} | null(이해 못함)
+function parseRequest(raw, employees) {
+  const text = (raw || "").trim();
+  if (!text) return null;
+  let m;
+
+  // 1) 야간 N일씩 / N일 연속 야간
+  m = text.match(new RegExp(SW + "\\s*(?:근무)?\\s*(?:을|를|은|는|도)?\\s*(?:(\\d+)\\s*일\\s*(?:씩|연속|동안)|연속\\s*(?:으로)?\\s*(\\d+)\\s*일)"));
+  let sh = null, n = null;
+  if (m) { sh = findShift(m[1]); n = Number(m[2] || m[3]); }
+  else {
+    m = text.match(new RegExp("(\\d+)\\s*일\\s*(?:씩|연속)\\s*(?:으로)?\\s*(?:만)?\\s*" + SW));
+    if (m) { n = Number(m[1]); sh = findShift(m[2]); }
+  }
+  if (sh !== null && n !== null) {
+    if (sh !== "N") return { error: "지금은 야간(N)만 '며칠씩' 묶어서 배정할 수 있어요." };
+    return { type: "block", shift: "N", n };
+  }
+
+  // 2) 연속 근무 최대 N일
+  m = text.match(/연속\s*근무[^\d]*(\d+)\s*일/);
+  if (m) return { type: "maxWork", n: Number(m[1]) };
+
+  // 3) (평일|주말) 야간 N명
+  m = text.match(new RegExp("(평일|주말)?\\s*" + SW + "\\s*(?:근무)?\\s*(?:인원)?\\s*(?:은|는|을|를|이|가)?\\s*(\\d+)\\s*명"));
+  if (m) {
+    const scope = m[1] === "평일" ? "weekday" : m[1] === "주말" ? "weekend" : "both";
+    return { type: "headcount", scope, shift: findShift(m[2]), n: Number(m[3]) };
+  }
+
+  // 4) 직원 이름이 들어간 요청
+  const emp = employees.filter((e) => text.includes(e.name)).sort((a, b) => b.name.length - a.name.length)[0];
+  if (emp) {
+    m = text.match(new RegExp("((?:" + SW + "\\s*[,，、·/와과및]?\\s*)+)\\s*(?:근무)?\\s*(?:은|는|을|를)?\\s*만"));
+    if (m) {
+      const shifts = Array.from(new Set(Array.from(m[1].matchAll(new RegExp(SW, "g"))).map((x) => findShift(x[1]))));
+      return { type: "only", empId: emp.id, shifts };
+    }
+    m = text.match(new RegExp(SW + "[^.]{0,8}?(?:빼|제외|안\\s*해|안\\s*하|못|금지|없이|하기\\s*싫)"));
+    if (m) return { type: "forbid", empId: emp.id, shift: findShift(m[1]) };
+    return { error: emp.name + " 님은 '야간 빼줘', '주간만 해줘' 같은 말을 지원해요." };
+  }
+  return null;
+}
+
+// 요청들을 반영한 규칙(원본 규칙은 건드리지 않음)
+function applyRequests(baseRules, requests, employees) {
+  const rules = JSON.parse(JSON.stringify(baseRules));
+  const forbid = {}, only = {};
+  let nightBlock = 1;
+  const res = (s) => (s === "DAY" ? (rules.dayCode || "S") : s);
+  (requests || []).forEach((r) => {
+    const s = r.spec;
+    if (!s || s.error) return;
+    if (s.type === "block") nightBlock = s.n;
+    else if (s.type === "maxWork") rules.maxConsecutiveWork = s.n;
+    else if (s.type === "headcount") {
+      const c = res(s.shift);
+      if (s.scope !== "weekend") rules.weekday[c] = s.n;
+      if (s.scope !== "weekday") rules.weekend[c] = s.n;
+    } else if (s.type === "forbid") {
+      (forbid[s.empId] = forbid[s.empId] || new Set()).add(res(s.shift));
+    } else if (s.type === "only") {
+      const set = (only[s.empId] = only[s.empId] || new Set());
+      (s.shifts || [s.shift]).forEach((c) => set.add(res(c)));
+    }
+  });
+  nightBlock = Math.max(1, Math.min(nightBlock, rules.maxConsecutiveNight));
+  return { rules, forbid, only, nightBlock };
+}
+function effectiveRules() {
+  return applyRequests(state.rules, state.requests, state.employees);
+}
+
+function describeRequest(s) {
+  const nm = (id) => (state.employees.find((e) => e.id === id) || { name: "(삭제된 직원)" }).name;
+  const lb = (c) => (c === "DAY" ? "주간" : c);
+  if (s.type === "block") return "야간(N)을 " + s.n + "일씩 묶어서 배정";
+  if (s.type === "maxWork") return "연속 근무 최대 " + s.n + "일";
+  if (s.type === "headcount")
+    return (s.scope === "weekday" ? "평일 " : s.scope === "weekend" ? "주말 " : "") + lb(s.shift) + " 필요인원 " + s.n + "명";
+  if (s.type === "forbid") return nm(s.empId) + ": " + lb(s.shift) + " 제외";
+  if (s.type === "only") return nm(s.empId) + ": " + (s.shifts || [s.shift]).map(lb).join("·") + "만 배정";
+  return "";
+}
+function escapeHtml(t) {
+  return String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderRequests() {
+  const wrap = document.getElementById("reqChips");
+  wrap.innerHTML = "";
+  (state.requests || []).forEach((r) => {
+    const chip = document.createElement("span");
+    chip.className = "req-chip";
+    chip.innerHTML = "<b>" + escapeHtml(r.text) + "</b><small>→ " + escapeHtml(describeRequest(r.spec)) + "</small>";
+    const x = document.createElement("button");
+    x.textContent = "×"; x.title = "요청 삭제";
+    x.onclick = () => {
+      state.requests = state.requests.filter((q) => q.id !== r.id);
+      saveState(); renderRequests(); renderTable();
+    };
+    chip.appendChild(x);
+    wrap.appendChild(chip);
+  });
+}
+
+// "고영상은 16일 21일 연차 넣어줘" 같은 날짜 지정 (지금 보고 있는 달에 바로 고정)
+const LEAVE_NAME = { 연: "연차", 휴: "휴무", 병: "병가", 공: "공가" };
+function parseDateAssign(raw, employees) {
+  const text = (raw || "").trim();
+  const emp = employees.filter((e) => text.includes(e.name)).sort((a, b) => b.name.length - a.name.length)[0];
+  if (!emp) return null;
+  if (/일\s*씩|\d+\s*명/.test(text)) return null;
+  let code = null;
+  if (/연차|연가|휴가/.test(text)) code = "연";
+  else if (/병가/.test(text)) code = "병";
+  else if (/공가/.test(text)) code = "공";
+  else if (/휴무|쉬게|쉬도록|쉬고|쉬어|오프|off/i.test(text)) code = "휴";
+  if (!code) return null;
+  const days = new Set();
+  let m;
+  const rangeRe = /(\d+)\s*일?\s*(?:~|-|부터)\s*(\d+)\s*일?/g;
+  while ((m = rangeRe.exec(text))) {
+    const lo = Math.min(Number(m[1]), Number(m[2])), hi = Math.max(Number(m[1]), Number(m[2]));
+    for (let i = lo; i <= hi; i++) days.add(i);
+  }
+  const rest = text.replace(rangeRe, " ");
+  const singleRe = /(\d+)\s*일/g;
+  while ((m = singleRe.exec(rest))) days.add(Number(m[1]));
+  if (days.size === 0) return { error: "날짜를 '16일 21일'처럼 적어 주세요 (예: 고영상 16일 21일 연차)" };
+  return { empId: emp.id, name: emp.name, code, days: Array.from(days).sort((a, b) => a - b) };
+}
+
+function addRequest() {
+  const input = document.getElementById("reqInput");
+  const text = input.value.trim();
+  if (!text) return;
+  const da = parseDateAssign(text, state.employees);
+  if (da) {
+    if (da.error) { flashToast(da.error); return; }
+    const nD = daysInMonth(state.year, state.month);
+    const valid = da.days.filter((d) => d >= 1 && d <= nD);
+    if (valid.length === 0) { flashToast(state.month + "월은 " + nD + "일까지예요. 날짜를 확인해 주세요"); return; }
+    valid.forEach((d) => setCellDirect(da.empId, d, da.code));
+    input.value = "";
+    saveState(); renderTable();
+    flashToast(da.name + " 님 " + state.month + "월 " + valid.join(", ") + "일을 " + LEAVE_NAME[da.code] + "로 지정했어요");
+    return;
+  }
+  const spec = parseRequest(text, state.employees);
+  if (!spec) { flashToast("아직 이해하지 못한 문장이에요. 아래 예시처럼 적어 주세요"); return; }
+  if (spec.error) { flashToast(spec.error); return; }
+  state.requests = state.requests || [];
+  state.requests.push({ id: uid(), text, spec });
+  input.value = "";
+  saveState(); renderRequests(); renderTable();
+  flashToast('요청을 추가했어요 — "자동배정 실행"을 누르면 반영돼요');
+}
+
+// ---------- 직원별 가능 근무 ----------
+function renderJobList() {
+  const wrap = document.getElementById("jobList");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  (state.jobTitles || []).forEach((t) => {
+    const chip = document.createElement("span");
+    chip.className = "req-chip";
+    chip.innerHTML = "<b>" + escapeHtml(t) + "</b>";
+    const x = document.createElement("button");
+    x.textContent = "×"; x.title = "목록에서 삭제";
+    x.onclick = () => {
+      state.jobTitles = state.jobTitles.filter((j) => j !== t);
+      saveState(); renderEmpPanel();
+    };
+    chip.appendChild(x);
+    wrap.appendChild(chip);
+  });
+}
+function addJobTitle() {
+  const input = document.getElementById("jobNewInput");
+  const v = input.value.trim();
+  if (!v) return;
+  state.jobTitles = state.jobTitles || [];
+  if (state.jobTitles.includes(v)) { flashToast("이미 있는 직책이에요"); return; }
+  state.jobTitles.push(v);
+  input.value = "";
+  saveState(); renderEmpPanel();
+}
+
+function renderEmpPanel() {
+  renderJobList();
+  const box = document.getElementById("empShiftList");
+  box.innerHTML = "";
+  if (state.employees.length === 0) {
+    box.innerHTML = '<div class="rules-help">직원을 먼저 추가해 주세요.</div>';
+    return;
+  }
+  state.employees.forEach((e) => {
+    const row = document.createElement("div");
+    row.className = "emp-row";
+    const nm = document.createElement("span");
+    nm.className = "nm"; nm.textContent = e.name;
+    row.appendChild(nm);
+    const job = document.createElement("select");
+    job.className = "job-select";
+    const titles = (state.jobTitles || []).slice();
+    if (e.title && !titles.includes(e.title)) titles.push(e.title);   // 목록에서 지운 직책도 사라지지 않게
+    const none = document.createElement("option");
+    none.value = ""; none.textContent = "직책 없음";
+    job.appendChild(none);
+    titles.forEach((t) => {
+      const o = document.createElement("option");
+      o.value = t; o.textContent = t;
+      job.appendChild(o);
+    });
+    job.value = e.title || "";
+    job.onchange = () => {
+      if (job.value) e.title = job.value; else delete e.title;
+      saveState(); renderTable();
+    };
+    row.appendChild(job);
+    const cur = Array.isArray(e.allowed) ? e.allowed : SHIFT_TYPES;
+    SHIFT_TYPES.forEach((c) => {
+      const b = document.createElement("button");
+      b.className = "shift-chip" + (cur.includes(c) ? " on" : "");
+      b.style.background = CODE_STYLE[c].bg;
+      b.style.color = CODE_STYLE[c].fg;
+      b.textContent = c;
+      b.onclick = () => {
+        const set = new Set(Array.isArray(e.allowed) ? e.allowed : SHIFT_TYPES);
+        if (set.has(c)) set.delete(c); else set.add(c);
+        const arr = SHIFT_TYPES.filter((x) => set.has(x));
+        if (arr.length === SHIFT_TYPES.length) delete e.allowed; else e.allowed = arr;
+        saveState(); renderEmpPanel(); renderTable();
+      };
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+  });
+}
+
+// ---------- 휴일 계산 ----------
+// 평일(월~금)에 걸리는 2026년 공휴일(대체공휴일·임시공휴일 포함). 다른 연도는 직접 입력.
+const DEFAULT_HOLIDAYS = {
+  2026: { 1: [1], 2: [16, 17, 18], 3: [2], 5: [1, 5, 25], 6: [3], 7: [17], 8: [17], 9: [24, 25], 10: [5, 9], 12: [25] },
+};
+function publicHolidays(year, month) {
+  const key = monthKey(year, month);
+  if (state.holidays && Array.isArray(state.holidays[key])) return state.holidays[key];
+  return (DEFAULT_HOLIDAYS[year] && DEFAULT_HOLIDAYS[year][month]) || [];
+}
+function holidayInfo(year, month) {
+  const n = daysInMonth(year, month);
+  let weekends = 0;
+  for (let d = 1; d <= n; d++) { const w = dowOf(year, month, d); if (w === 0 || w === 6) weekends++; }
+  const pubs = Array.from(new Set(publicHolidays(year, month).filter((d) => {
+    if (d < 1 || d > n) return false;
+    const w = dowOf(year, month, d);
+    return w !== 0 && w !== 6;
+  }))).sort((a, b) => a - b);
+  return { weekends, pubs, total: weekends + pubs.length };
+}
+
+// ---------- 적용 중인 규칙 ----------
+function renderSummary() {
+  const el = document.getElementById("summaryBody");
+  if (!el) return;
+  const eff = effectiveRules();
+  const r = eff.rules;
+  const hi = holidayInfo(state.year, state.month);
+  const h = (t) => '<b class="hl">' + escapeHtml(t) + "</b>";   // 설정값은 빨간 글자로 강조
+  const li = (arr) => "<ul>" + arr.map((t) => "<li>" + t + "</li>").join("") + "</ul>";
+  const cnt = (o) => SHIFT_TYPES.map((c) => c + " " + h(o[c] || 0)).join(" · ");
+  const ok = makeGapOk(r);
+  const blocked = [];
+  SHIFT_TYPES.forEach((a) => SHIFT_TYPES.forEach((b) => { if (!ok(a, b)) blocked.push(a + "→" + b); }));
+  const times = SHIFT_TYPES.map((c) => c + " " + h(r.shiftTimes[c].start + "~" + r.shiftTimes[c].end)).join(", ");
+  const limited = state.employees.filter((e) => Array.isArray(e.allowed));
+  const reqs = state.requests || [];
+  const sections = [
+    ["기본", [
+      "D·S·E·N만 자동으로 배정하고, 연·휴·병·공은 직접 지정해요. 직접 지정한 칸은 자동배정이 바꾸지 않아요.",
+      "필요인원 — 평일: " + cnt(r.weekday) + " / 주말: " + cnt(r.weekend),
+      "최대 연속 근무 " + h(r.maxConsecutiveWork + "일") + ", 최대 연속 야간 " + h(r.maxConsecutiveNight + "일"),
+      "배정받지 못한 날은 자동으로 휴무가 돼요.",
+    ]],
+    ["야간·휴식", [
+      "야간이 끝난 다음 날 휴무: " + h(r.restAfterNight ? "켜짐" : "꺼짐") +
+        (r.restAfterNight ? " (야간 다음 날에는 야간을 이어서 하거나 쉬어요)" : " (아래 휴식시간 규칙만 적용)"),
+      "근무 사이 최소 휴식 " + h(r.minRestHours + "시간") + " (근무 시간대: " + times + ")",
+      blocked.length ? "다음날 이어서 할 수 없는 조합: " + h(blocked.join(", ")) : "휴식시간 때문에 막히는 조합 " + h("없음"),
+      "다음 날이 직접 고정된 근무라면 그것과의 휴식시간도 지켜요. 직접 지정해서 어긋난 칸은 빨간 테두리로 표시돼요.",
+    ]],
+    ["휴무 보장", [
+      r.guaranteeOff
+        ? state.year + "년 " + state.month + "월 휴일 " + h(hi.total + "일") + " (주말 " + h(hi.weekends + "일") +
+          (hi.pubs.length ? " + 평일 공휴일 " + h(hi.pubs.length + "일") + ": " + h(hi.pubs.join(", ") + "일") : "") +
+          ") → 직원마다 휴무(휴)를 " + h(hi.total + "일 이상") + " 보장해요. 연·병·공은 휴무에 포함하지 않아요."
+        : "휴무 보장: " + h("꺼짐"),
+      r.guaranteeOff ? "인원이 부족해도 이 보장은 지키고, 대신 인원이 부족한 칸이 표 아래에 빨갛게 표시돼요." : "",
+    ].filter(Boolean)],
+    ["직원별 제한", limited.length
+      ? limited.map((e) => escapeHtml(e.name) + ": " + h((e.allowed.join("·") || "없음") + "만 가능"))
+      : ["제한 없음 (모두 D·S·E·N 가능)"]],
+    ["형평성", ["같은 근무를 적게 한 사람을 먼저 배정하고, 직접 고정한 근무도 횟수에 포함해요."]],
+    ["문장으로 추가한 요청", reqs.length
+      ? reqs.map((q) => h(q.text) + " → " + h(describeRequest(q.spec)))
+      : ["없음"]],
+    ["알아두세요", [
+      "인원이 모자라면 연속 근무·연속 야간 한도는 넘길 수 있어요. 직원별 가능 근무, 휴식시간, 휴무 보장은 끝까지 지켜요.",
+      "전월 근무는 반영하지 않아서, 매월 1일은 연속 근무 0일에서 시작해요.",
+    ]],
+  ];
+  el.innerHTML = sections.map(([t, arr]) => "<h4>" + t + "</h4>" + li(arr)).join("");
+}
+
+// ---------- 엑셀 내보내기 (종이 근무표 양식) ----------
+function xmlEsc(t) {
+  return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function colName(n) {
+  let out = "";
+  while (n > 0) { const r = (n - 1) % 26; out = String.fromCharCode(65 + r) + out; n = Math.floor((n - 1) / 26); }
+  return out;
+}
+
+function makeStyleBook() {
+  const BORDER = "FF595959";
+  const fonts = ['<font><sz val="10"/><name val="맑은 고딕"/></font>'];
+  const fills = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>'];
+  const side = (n) => '<' + n + ' style="thin"><color rgb="' + BORDER + '"/></' + n + '>';
+  const borders = [
+    '<border><left/><right/><top/><bottom/><diagonal/></border>',
+    '<border>' + side("left") + side("right") + side("top") + side("bottom") + '<diagonal/></border>',
+  ];
+  const xfs = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'];
+  const cache = {};
+  const idx = (arr, x) => { let i = arr.indexOf(x); if (i < 0) { arr.push(x); i = arr.length - 1; } return i; };
+  const argb = (hex) => "FF" + hex.replace("#", "").toUpperCase();
+  function get(o) {
+    o = o || {};
+    const key = JSON.stringify(o);
+    if (cache[key] !== undefined) return cache[key];
+    const font = "<font>" + (o.bold ? "<b/>" : "") + '<sz val="' + (o.size || 10) + '"/>' +
+      (o.fg ? '<color rgb="' + argb(o.fg) + '"/>' : "") + '<name val="맑은 고딕"/></font>';
+    const fill = o.bg
+      ? '<fill><patternFill patternType="solid"><fgColor rgb="' + argb(o.bg) + '"/><bgColor indexed="64"/></patternFill></fill>'
+      : fills[0];
+    const fi = idx(fonts, font), fl = idx(fills, fill), bo = o.noBorder ? 0 : 1;
+    const al = '<alignment horizontal="' + (o.left ? "left" : "center") + '" vertical="center"' + (o.wrap ? ' wrapText="1"' : "") + "/>";
+    xfs.push('<xf numFmtId="0" fontId="' + fi + '" fillId="' + fl + '" borderId="' + bo +
+      '" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">' + al + "</xf>");
+    cache[key] = xfs.length - 1;
+    return cache[key];
+  }
+  function xml() {
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<fonts count="' + fonts.length + '">' + fonts.join("") + "</fonts>" +
+      '<fills count="' + fills.length + '">' + fills.join("") + "</fills>" +
+      '<borders count="' + borders.length + '">' + borders.join("") + "</borders>" +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="' + xfs.length + '">' + xfs.join("") + "</cellXfs>" +
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  }
+  return { get, xml };
+}
+
+// 종이 근무표와 같은 배치: 제목·결재란 / 직책·성명·날짜·요일 / 개인별집계 / 하단 일자별 D·S·E·N 합계
+function buildSheetXml(year, month, cells, st, dateText) {
+  const emps = state.employees;
+  const unit = (state.rules.unitName || "").trim();
+  const nDays = daysInMonth(year, month);
+  const info = holidayInfo(year, month);
+  const BLANK = 3;
+  const lastDay = 2 + nDays;
+  const firstTot = lastDay + 1;
+  const lastCol = lastDay + 9;
+  const bodyStart = 6;
+  const bodyEnd = bodyStart + emps.length + BLANK - 1;
+  const sumRow = bodyEnd + 1;
+  const footStart = sumRow + 1;
+  const lastRow = footStart + 3;
+
+  const SAT = "7FA9DD", SUN = "EDB5B5", HEAD = "F2F2F2", RED = "C00000";
+  const kind = (d) => {
+    const w = dowOf(year, month, d);
+    if (w === 6) return "sat";
+    if (w === 0 || info.pubs.includes(d)) return "sun";
+    return "norm";
+  };
+  const kindBg = (k) => (k === "sat" ? SAT : k === "sun" ? SUN : null);
+
+  const grid = {}, merges = [], heights = {};
+  const ref = (r, c) => colName(c) + r;
+  const put = (r, c, x) => { (grid[r] = grid[r] || {})[c] = x; };
+  const sText = (r, c, text, style) => put(r, c, text === "" || text == null
+    ? '<c r="' + ref(r, c) + '" s="' + style + '"/>'
+    : '<c r="' + ref(r, c) + '" s="' + style + '" t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(text) + "</t></is></c>");
+  const sNum = (r, c, n, style) => put(r, c, '<c r="' + ref(r, c) + '" s="' + style + '"><v>' + n + "</v></c>");
+  const sFor = (r, c, f, v, style) => put(r, c, '<c r="' + ref(r, c) + '" s="' + style + '"><f>' + xmlEsc(f) + "</f><v>" + v + "</v></c>");
+  const merge = (r1, c1, r2, c2, style) => {
+    for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) {
+      if (!(grid[r] && grid[r][c])) put(r, c, '<c r="' + ref(r, c) + '" s="' + style + '"/>');
+    }
+    merges.push(ref(r1, c1) + ":" + ref(r2, c2));
+  };
+
+  // ── 제목 / 작성일 / 결재란 (표 오른쪽 위)
+  const L = lastCol - 12;                       // 결재 라벨 칸
+  const sTitle = st.get({ bold: true, size: 20, noBorder: true });
+  const sDate = st.get({ size: 9, noBorder: true });
+  sText(1, 1, year + "년 " + month + "월 " + (unit ? unit + " " : "") + "근무표", sTitle);
+  merge(1, 1, 1, L - 1, sTitle);
+  sText(2, 1, dateText, sDate);
+  merge(2, 1, 3, L - 1, sDate);
+  const sBox = st.get({ bold: true });
+  sText(1, L, "결재", st.get({ bold: true, wrap: true }));
+  merge(1, L, 3, L, st.get({ bold: true, wrap: true }));
+  ["담당", "사무국장", "원 장", "이사장"].forEach((t, i) => {
+    const c1 = L + 1 + i * 3;
+    sText(1, c1, t, sBox);
+    merge(1, c1, 1, c1 + 2, sBox);
+    sText(2, c1, "", st.get({}));
+    merge(2, c1, 3, c1 + 2, st.get({}));
+  });
+  heights[1] = 30;
+
+  // ── 머리글 (직책·성명·날짜/요일·개인별집계)
+  const sHead = st.get({ bold: true, bg: HEAD });
+  sText(4, 1, "직책", sHead); merge(4, 1, 5, 1, sHead);
+  sText(4, 2, "성명", sHead); merge(4, 2, 5, 2, sHead);
+  for (let d = 1; d <= nDays; d++) {
+    const k = kind(d);
+    const sty = st.get({ bold: true, bg: kindBg(k) || HEAD, fg: k === "norm" ? null : "000000" });
+    sNum(4, 2 + d, d, sty);
+    sText(5, 2 + d, WEEKDAY_LABEL[dowOf(year, month, d)], sty);
+  }
+  sText(4, firstTot, "개인별집계", sHead);
+  merge(4, firstTot, 4, lastCol, sHead);
+  const totHeads = ["D", "S", "E", "N", "휴무", "연", "병", "공", "계"];
+  const totCrit = ["D", "S", "E", "N", "/", "연", "병", "공"];   // 마지막 '계'는 이 8개의 합
+  totHeads.forEach((t, i) => sText(5, firstTot + i, t, sHead));
+
+  // ── 본문 (직원 + 빈 줄)
+  const cellOf = (e, d) => (cells[e.id] && cells[e.id][d] && cells[e.id][d].code) || "";
+  const shown = (code) => (code === "휴" ? "/" : code);
+  const colSums = Array(9).fill(0);
+  for (let i = 0; i < emps.length + BLANK; i++) {
+    const r = bodyStart + i;
+    const e = emps[i];
+    sText(r, 1, e && e.title ? e.title : "", st.get({}));
+    sText(r, 2, e ? e.name : "", st.get({}));
+    const counts = totCrit.map(() => 0);
+    for (let d = 1; d <= nDays; d++) {
+      const k = kind(d);
+      const code = e ? cellOf(e, d) : "";
+      const txt = shown(code);
+      const red = code === "연" || (txt === "/" && k !== "norm");
+      sText(r, 2 + d, txt, st.get({ bg: kindBg(k), fg: red ? RED : null, bold: txt !== "" }));
+      const ci = totCrit.indexOf(txt);
+      if (ci >= 0) counts[ci] += 1;
+    }
+    totCrit.forEach((crit, ci) => {
+      sFor(r, firstTot + ci, 'COUNTIF($C' + r + ":$" + colName(lastDay) + r + ',"' + crit + '")', counts[ci], st.get({}));
+      colSums[ci] += counts[ci];
+    });
+    const rowTotal = counts.reduce((a, b) => a + b, 0);
+    sFor(r, lastCol, "SUM(" + colName(firstTot) + r + ":" + colName(firstTot + 7) + r + ")", rowTotal, st.get({ bold: true }));
+    colSums[8] += rowTotal;
+  }
+
+  // ── 집계 합계 줄
+  const sPlain = st.get({});
+  sText(sumRow, 1, "", sPlain); merge(sumRow, 1, sumRow, lastDay, sPlain);
+  for (let ci = 0; ci < 9; ci++) {
+    const col = colName(firstTot + ci);
+    sFor(sumRow, firstTot + ci, "SUM(" + col + bodyStart + ":" + col + bodyEnd + ")", colSums[ci], st.get({ bold: true }));
+  }
+
+  // ── 하단: 일자별 D·S·E·N 인원 + 월 합계
+  sText(footStart, 1, "계", st.get({ bold: true }));
+  merge(footStart, 1, footStart + 3, 1, st.get({ bold: true }));
+  ["D", "S", "E", "N"].forEach((shift, si) => {
+    const r = footStart + si;
+    sText(r, 2, shift, st.get({ bold: true }));
+    let total = 0;
+    for (let d = 1; d <= nDays; d++) {
+      let n = 0;
+      emps.forEach((e) => { if (cellOf(e, d) === shift) n += 1; });
+      total += n;
+      const col = colName(2 + d);
+      sFor(r, 2 + d, 'COUNTIF(' + col + bodyStart + ":" + col + bodyEnd + ',"' + shift + '")', n, st.get({}));
+    }
+    sFor(r, firstTot, "SUM(C" + r + ":" + colName(lastDay) + r + ")", total, st.get({ bold: true }));
+    merge(r, firstTot, r, lastCol, st.get({ bold: true }));
+  });
+
+  // ── XML 조립
+  let rowsXml = "";
+  for (let r = 1; r <= lastRow; r++) {
+    const cols = grid[r] ? Object.keys(grid[r]).map(Number).sort((a, b) => a - b) : [];
+    const ht = heights[r] ? ' ht="' + heights[r] + '" customHeight="1"' : "";
+    rowsXml += '<row r="' + r + '"' + ht + ">" + cols.map((c) => grid[r][c]).join("") + "</row>";
+  }
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' +
+    '<dimension ref="A1:' + colName(lastCol) + lastRow + '"/>' +
+    '<sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="5" topLeftCell="C6" activePane="bottomRight" state="frozen"/><selection pane="bottomRight"/></sheetView></sheetViews>' +
+    '<sheetFormatPr defaultRowHeight="18" customHeight="1"/>' +
+    '<cols><col min="1" max="1" width="8" customWidth="1"/><col min="2" max="2" width="10" customWidth="1"/>' +
+    '<col min="3" max="' + lastDay + '" width="3.8" customWidth="1"/>' +
+    '<col min="' + firstTot + '" max="' + lastCol + '" width="6" customWidth="1"/></cols>' +
+    "<sheetData>" + rowsXml + "</sheetData>" +
+    '<mergeCells count="' + merges.length + '">' + merges.map((m) => '<mergeCell ref="' + m + '"/>').join("") + "</mergeCells>" +
+    '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>' +
+    '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>' +
+    "</worksheet>";
+}
+
+function buildWorkbookFiles(monthKeys, dateText) {
+  const st = makeStyleBook();
+  const sheets = monthKeys.map((k) => {
+    const p = k.split("-").map(Number);
+    return { name: k, xml: buildSheetXml(p[0], p[1], state.schedules[k] || {}, st, dateText) };
+  });
+  const NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+  const RNS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  const files = {};
+  files["[Content_Types].xml"] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    sheets.map((x, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join("") +
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+  files["_rels/.rels"] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  files["xl/workbook.xml"] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<workbook xmlns="' + NS + '" xmlns:r="' + RNS + '"><bookViews><workbookView/></bookViews><sheets>' +
+    sheets.map((x, i) => '<sheet name="' + xmlEsc(x.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join("") +
+    '</sheets><calcPr fullCalcOnLoad="1"/></workbook>';
+  files["xl/_rels/workbook.xml.rels"] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    sheets.map((x, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join("") +
+    '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
+  files["xl/styles.xml"] = st.xml();
+  sheets.forEach((x, i) => { files["xl/worksheets/sheet" + (i + 1) + ".xml"] = x.xml; });
+  return files;
+}
+
+function loadJSZip() {
+  return new Promise((resolve, reject) => {
+    if (window.JSZip) return resolve(window.JSZip);
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    sc.onload = () => resolve(window.JSZip);
+    sc.onerror = () => reject(new Error("jszip"));
+    document.head.appendChild(sc);
+  });
+}
+
+async function exportExcel(mode) {
+  if (state.employees.length === 0) { flashToast("직원이 없어서 내보낼 내용이 없어요"); return; }
+  let keys;
+  if (mode === "all") {
+    keys = Object.keys(state.schedules)
+      .filter((k) => /^\d{4}-\d{2}$/.test(k) && Object.values(state.schedules[k] || {}).some((row) => Object.values(row).some((c) => c && c.code)))
+      .sort();
+    if (keys.length === 0) { flashToast("저장된 근무표가 없어요"); return; }
+  } else {
+    keys = [monthKey(state.year, state.month)];
+  }
+  try {
+    flashToast("엑셀 파일을 만드는 중이에요…");
+    const JSZip = await loadJSZip();
+    const t = new Date();
+    const dateText = "'" + String(t.getFullYear()).slice(2) + "." + (t.getMonth() + 1) + "." + t.getDate() + ".";
+    const files = buildWorkbookFiles(keys, dateText);
+    const zip = new JSZip();
+    Object.keys(files).forEach((p) => zip.file(p, files[p]));
+    const blob = await zip.generateAsync({
+      type: "blob", compression: "DEFLATE",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = mode === "all" ? "근무표_전체.xlsx" : "근무표_" + keys[0] + ".xlsx";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    flashToast("엑셀 파일을 저장했어요");
+  } catch (e) {
+    flashToast("엑셀 파일을 만들지 못했어요. 인터넷 연결을 확인해 주세요");
+  }
+}
+
+// ---------- toast ----------
+let toastTimer = null;
+function flashToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.style.display = "block";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.display = "none"; }, 2200);
+}
+
+// ---------- render ----------
+function populateMonthPickers() {
+  const yearSelect = document.getElementById("yearSelect");
+  const monthSelect = document.getElementById("monthSelect");
+  yearSelect.innerHTML = "";
+  monthSelect.innerHTML = "";
+  for (let y = today.getFullYear() - 1; y <= today.getFullYear() + 3; y++) {
+    const opt = document.createElement("option");
+    opt.value = y; opt.textContent = y + "년";
+    if (y === state.year) opt.selected = true;
+    yearSelect.appendChild(opt);
+  }
+  for (let m = 1; m <= 12; m++) {
+    const opt = document.createElement("option");
+    opt.value = m; opt.textContent = m + "월";
+    if (m === state.month) opt.selected = true;
+    monthSelect.appendChild(opt);
+  }
+  yearSelect.onchange = () => { state.year = Number(yearSelect.value); saveState(); renderAll(); };
+  monthSelect.onchange = () => { state.month = Number(monthSelect.value); saveState(); renderAll(); };
+}
+
+function renderLegend() {
+  const legend = document.getElementById("legend");
+  legend.innerHTML = "";
+  CODES.filter((c) => c !== "").forEach((c) => {
+    const span = document.createElement("span");
+    span.className = "legend-chip";
+    span.style.background = CODE_STYLE[c].bg;
+    span.style.color = CODE_STYLE[c].fg;
+    span.textContent = c;
+    legend.appendChild(span);
+  });
+  const note = document.createElement("span");
+  note.className = "legend-note";
+  note.textContent = "셀 클릭: 코드 순환 (좌→우) · 우클릭: 역순 · 진한 칸은 고정(직접 지정), 흐린 칸은 자동배정 대상";
+  legend.appendChild(note);
+}
+
+function renderRulesPanel() {
+  const weekdayRules = document.getElementById("weekdayRules");
+  const weekendRules = document.getElementById("weekendRules");
+  weekdayRules.innerHTML = "";
+  weekendRules.innerHTML = "";
+  SHIFT_TYPES.forEach((s) => {
+    const label1 = document.createElement("label");
+    label1.className = "num-label";
+    label1.innerHTML = `${s}<input type="number" min="0" class="num-input" data-kind="weekday" data-shift="${s}" value="${state.rules.weekday[s]}">`;
+    weekdayRules.appendChild(label1);
+
+    const label2 = document.createElement("label");
+    label2.className = "num-label";
+    label2.innerHTML = `${s}<input type="number" min="0" class="num-input" data-kind="weekend" data-shift="${s}" value="${state.rules.weekend[s]}">`;
+    weekendRules.appendChild(label2);
+  });
+  document.querySelectorAll(".num-input").forEach((inp) => {
+    inp.onchange = () => {
+      state.rules[inp.dataset.kind][inp.dataset.shift] = Number(inp.value);
+      saveState();
+      renderAll();
+    };
+  });
+  document.getElementById("maxConsecutiveWork").value = state.rules.maxConsecutiveWork;
+  document.getElementById("maxConsecutiveWork").onchange = (e) => {
+    state.rules.maxConsecutiveWork = Number(e.target.value); saveState();
+  };
+  document.getElementById("maxConsecutiveNight").value = state.rules.maxConsecutiveNight;
+  document.getElementById("maxConsecutiveNight").onchange = (e) => {
+    state.rules.maxConsecutiveNight = Number(e.target.value); saveState();
+  };
+  document.getElementById("restAfterNight").checked = state.rules.restAfterNight;
+  document.getElementById("restAfterNight").onchange = (e) => {
+    state.rules.restAfterNight = e.target.checked; saveState();
+  };
+
+  const dayCodeSel = document.getElementById("dayCode");
+  dayCodeSel.value = state.rules.dayCode;
+  dayCodeSel.onchange = () => { state.rules.dayCode = dayCodeSel.value; saveState(); };
+
+  const un = document.getElementById("unitName");
+  un.value = state.rules.unitName || "";
+  un.onchange = () => { state.rules.unitName = un.value.trim(); saveState(); };
+  const go = document.getElementById("guaranteeOff");
+  go.checked = !!state.rules.guaranteeOff;
+  go.onchange = () => { state.rules.guaranteeOff = go.checked; saveState(); renderTable(); };
+  const hKey = monthKey(state.year, state.month);
+  const hInfo = holidayInfo(state.year, state.month);
+  const hInput = document.getElementById("holidayInput");
+  hInput.value = hInfo.pubs.join(",");
+  const hasTable = !!DEFAULT_HOLIDAYS[state.year] || !!(state.holidays && state.holidays[hKey]);
+  document.getElementById("holidayInfo").textContent =
+    state.year + "년 " + state.month + "월 휴일 " + hInfo.total + "일 = 주말 " + hInfo.weekends + "일 + 평일 공휴일 " + hInfo.pubs.length + "일" +
+    (hasTable ? "" : " (이 연도의 공휴일은 자동으로 채우지 않았어요. 아래에 직접 입력해 주세요)");
+  hInput.onchange = () => {
+    state.holidays = state.holidays || {};
+    state.holidays[hKey] = parseDayList(hInput.value, daysInMonth(state.year, state.month));
+    saveState(); renderRulesPanel(); renderTable();
+  };
+  document.getElementById("holidayResetBtn").onclick = () => {
+    if (state.holidays) delete state.holidays[hKey];
+    saveState(); renderRulesPanel(); renderTable();
+  };
+
+  const info = document.getElementById("restInfo");
+  const refreshInfo = () => {
+    const ok = makeGapOk(state.rules);
+    const blocked = [];
+    SHIFT_TYPES.forEach((a) => SHIFT_TYPES.forEach((b) => { if (!ok(a, b)) blocked.push(a + "→" + b); }));
+    info.textContent = blocked.length
+      ? "다음날 이어서 할 수 없는 조합: " + blocked.join(", ") + "  (표에서 직접 지정해도 빨간 테두리로 알려줘요)"
+      : "휴식시간 때문에 막히는 조합이 없어요.";
+  };
+  const rest = document.getElementById("minRestHours");
+  rest.value = state.rules.minRestHours;
+  rest.onchange = () => { state.rules.minRestHours = Number(rest.value); saveState(); refreshInfo(); renderTable(); };
+  const box = document.getElementById("shiftTimesBox");
+  box.innerHTML = "";
+  SHIFT_TYPES.forEach((c) => {
+    const st = state.rules.shiftTimes[c];
+    const lab = document.createElement("label");
+    lab.className = "num-label";
+    lab.style.alignItems = "flex-start";
+    lab.innerHTML = c + '<span><input type="time" data-c="' + c + '" data-k="start" value="' + st.start +
+      '"> ~ <input type="time" data-c="' + c + '" data-k="end" value="' + st.end + '"></span>';
+    box.appendChild(lab);
+  });
+  box.querySelectorAll("input").forEach((inp) => {
+    inp.onchange = () => {
+      state.rules.shiftTimes[inp.dataset.c][inp.dataset.k] = inp.value;
+      saveState(); refreshInfo(); renderTable();
+    };
+  });
+  refreshInfo();
+}
+
+function setCellDirect(empId, day, code) {
+  const cells = currentCells();
+  if (!cells[empId]) cells[empId] = {};
+  cells[empId][day] = { code, locked: code !== "" };
+}
+
+function renderBrushBar() {
+  const wrap = document.getElementById("brushChips");
+  wrap.innerHTML = "";
+  CODES.forEach((c) => {
+    const btn = document.createElement("button");
+    btn.className = "brush-chip" + (brushCode === c ? " active" : "");
+    btn.style.background = CODE_STYLE[c].bg === "transparent" ? "#F0F1F4" : CODE_STYLE[c].bg;
+    btn.style.color = CODE_STYLE[c].fg;
+    btn.textContent = c === "" ? "지우기" : c;
+    btn.onclick = () => {
+      brushCode = brushCode === c ? null : c;
+      renderBrushBar();
+      document.querySelector(".table-wrap").classList.toggle("brush-on", brushCode !== null);
+    };
+    wrap.appendChild(btn);
+  });
+  document.getElementById("brushHint").textContent = brushCode === null
+    ? "코드를 선택한 뒤 셀을 클릭하거나 드래그하면 바로 그 값으로 채워져요."
+    : "붓이 켜져 있어요 — 셀을 클릭하거나 드래그하면 바로 채워져요. 같은 코드를 다시 누르면 꺼져요.";
+}
+
+function cycleCell(empId, day, backward) {
+  const cells = currentCells();
+  if (!cells[empId]) cells[empId] = {};
+  const cur = (cells[empId][day] && cells[empId][day].code) || "";
+  let idx = CODES.indexOf(cur);
+  idx = backward ? (idx - 1 + CODES.length) % CODES.length : (idx + 1) % CODES.length;
+  const code = CODES[idx];
+  cells[empId][day] = { code, locked: code !== "" };
+  saveState();
+  renderTable();
+}
+
+function computeTotals(cells, nDays) {
+  const t = {};
+  state.employees.forEach((e) => {
+    const row = { D: 0, S: 0, E: 0, N: 0, 연: 0, 휴: 0, 병: 0, 공: 0 };
+    for (let d = 1; d <= nDays; d++) {
+      const code = cells[e.id] && cells[e.id][d] && cells[e.id][d].code;
+      if (code && row[code] !== undefined) row[code] += 1;
+    }
+    row.work = row.D + row.S + row.E + row.N;
+    t[e.id] = row;
+  });
+  return t;
+}
+
+function computeDayTotals(cells, nDays) {
+  const out = {};
+  SHIFT_TYPES.forEach((s) => (out[s] = Array(nDays + 1).fill(0)));
+  for (let d = 1; d <= nDays; d++) {
+    state.employees.forEach((e) => {
+      const code = cells[e.id] && cells[e.id][d] && cells[e.id][d].code;
+      if (SHIFT_TYPES.includes(code)) out[code][d] += 1;
+    });
+  }
+  return out;
+}
+
+function renderTable() {
+  const { year, month, employees } = state;
+  const rules = effectiveRules().rules;
+  const gapOkView = makeGapOk(rules);
+  const reqOff = rules.guaranteeOff ? holidayInfo(year, month).total : 0;
+  const cells = currentCells();
+  const nDays = daysInMonth(year, month);
+
+  const head = document.getElementById("tableHead");
+  const body = document.getElementById("tableBody");
+  const foot = document.getElementById("tableFoot");
+  head.innerHTML = ""; body.innerHTML = ""; foot.innerHTML = "";
+
+  // head
+  const headRow = document.createElement("tr");
+  headRow.innerHTML = `<th class="name">직원</th>`;
+  for (let d = 1; d <= nDays; d++) {
+    const dow = dowOf(year, month, d);
+    const bg = dow === 0 ? "#FBE9EF" : dow === 6 ? "#E7EFFB" : "#F6F7FA";
+    const fg = dow === 0 ? "#B23A5E" : dow === 6 ? "#2A5AA8" : "#5B6472";
+    const th = document.createElement("th");
+    th.className = "day";
+    th.style.background = bg; th.style.color = fg;
+    th.innerHTML = `<div>${d}</div><small>${WEEKDAY_LABEL[dow]}</small>`;
+    headRow.appendChild(th);
+  }
+  const totalTh = document.createElement("th");
+  totalTh.className = "total"; totalTh.colSpan = 9; totalTh.textContent = "집계";
+  headRow.appendChild(totalTh);
+  head.appendChild(headRow);
+
+  // body
+  if (employees.length === 0) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.className = "empty-row"; td.colSpan = nDays + 10;
+    td.textContent = "아직 등록된 직원이 없어요. 위에서 이름을 입력해 추가해 주세요.";
+    tr.appendChild(td);
+    body.appendChild(tr);
+  } else {
+    const totals = computeTotals(cells, nDays);
+    employees.forEach((e) => {
+      const tr = document.createElement("tr");
+      const tdName = document.createElement("td");
+      tdName.className = "name";
+      const tag = e.title ? '<span class="job-tag">' + escapeHtml(e.title) + "</span>" : "";
+      const lim = Array.isArray(e.allowed)
+        ? `<span class="role-tag" style="background:#EDEFF3;color:#5B6472;">${e.allowed.join("·") || "없음"}만</span>` : "";
+      const inner = document.createElement("div");
+      inner.className = "name-inner";
+      inner.innerHTML = `<span>${e.name}${tag}${lim}</span>`;
+      const quickBtn = document.createElement("button");
+      quickBtn.className = "quick-btn"; quickBtn.textContent = "📅"; quickBtn.title = "날짜 여러 개 한번에 입력";
+      quickBtn.onclick = () => {
+        const raw = window.prompt(
+          `${e.name} 님 날짜 일괄 입력\n형식: 코드 날짜목록  (예: 연 5,12-15,20)\n사용 코드: D S E N 연 휴 병 공  (지우려면 코드 자리에 - 입력)`
+        );
+        if (!raw) return;
+        const parts = raw.trim().split(/\s+/);
+        const codeInput = parts[0] === "-" ? "" : parts[0];
+        const dayListStr = parts.slice(1).join(" ");
+        if (!CODES.includes(codeInput)) { flashToast("코드를 확인해 주세요 (D S E N 연 휴 병 공 -)"); return; }
+        const days = parseDayList(dayListStr, nDays);
+        if (days.length === 0) { flashToast("날짜를 확인해 주세요 (예: 5,12-15,20)"); return; }
+        days.forEach((d) => setCellDirect(e.id, d, codeInput));
+        saveState(); renderTable();
+        flashToast(`${e.name} 님 ${days.length}일 반영했어요`);
+      };
+      inner.appendChild(quickBtn);
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "remove-btn"; removeBtn.textContent = "×"; removeBtn.title = "직원 삭제";
+      removeBtn.onclick = () => {
+        state.employees = state.employees.filter((x) => x.id !== e.id);
+        Object.values(state.schedules).forEach((sc) => delete sc[e.id]);
+        saveState(); renderAll();
+      };
+      inner.appendChild(removeBtn);
+      tdName.appendChild(inner);
+      tr.appendChild(tdName);
+
+      for (let d = 1; d <= nDays; d++) {
+        const cell = (cells[e.id] && cells[e.id][d]) || { code: "", locked: false };
+        const st = CODE_STYLE[cell.code] || CODE_STYLE[""];
+        const td = document.createElement("td");
+        td.className = "cell";
+        const btn = document.createElement("button");
+        btn.className = "cell-btn";
+        btn.dataset.emp = e.id;
+        btn.dataset.day = d;
+        btn.textContent = cell.code;
+        btn.style.background = st.bg;
+        btn.style.color = st.fg;
+        btn.style.opacity = cell.code && !cell.locked ? "0.55" : "1";
+        btn.style.fontStyle = cell.code && !cell.locked ? "italic" : "normal";
+        btn.style.border = cell.locked ? "1.5px solid rgba(0,0,0,0.18)" : "1px dashed rgba(0,0,0,0.10)";
+        const prevCode = d > 1 && cells[e.id] && cells[e.id][d - 1] ? cells[e.id][d - 1].code : "";
+        if (SHIFT_TYPES.includes(cell.code) && SHIFT_TYPES.includes(prevCode) && !gapOkView(prevCode, cell.code)) {
+          btn.style.boxShadow = "0 0 0 2px #E0565B";
+          btn.title = "전날 근무와의 휴식시간이 " + rules.minRestHours + "시간보다 짧아요";
+        }
+        btn.onclick = () => {
+          if (brushCode !== null) { setCellDirect(e.id, d, brushCode); saveState(); renderTable(); }
+          else cycleCell(e.id, d, false);
+        };
+        btn.oncontextmenu = (ev) => { ev.preventDefault(); if (brushCode === null) cycleCell(e.id, d, true); };
+        btn.onmousedown = () => { if (brushCode !== null) { isPainting = true; setCellDirect(e.id, d, brushCode); saveState(); renderTable(); } };
+        btn.onmouseenter = () => { if (isPainting && brushCode !== null) { setCellDirect(e.id, d, brushCode); saveState(); renderTable(); } };
+        td.appendChild(btn);
+        tr.appendChild(td);
+      }
+
+      ["D", "S", "E", "N", "연", "휴", "병", "공", "work"].forEach((k) => {
+        const td = document.createElement("td");
+        td.className = "total-cell";
+        td.textContent = totals[e.id][k];
+        if (k === "휴" && totals[e.id][k] < reqOff) {
+          td.style.color = "#C24545"; td.style.fontWeight = "700";
+          td.title = "이번 달 휴일 " + reqOff + "일보다 휴무가 적어요";
+        }
+        tr.appendChild(td);
+      });
+
+      body.appendChild(tr);
+    });
+
+    // foot
+    const dayTotals = computeDayTotals(cells, nDays);
+    SHIFT_TYPES.forEach((s) => {
+      const tr = document.createElement("tr");
+      const tdLabel = document.createElement("td");
+      tdLabel.className = "foot-label"; tdLabel.textContent = s + " 인원";
+      tr.appendChild(tdLabel);
+      for (let d = 1; d <= nDays; d++) {
+        const dow = dowOf(year, month, d);
+        const req = (dow === 0 || dow === 6 ? rules.weekend : rules.weekday)[s];
+        const val = dayTotals[s][d];
+        const td = document.createElement("td");
+        td.className = "foot";
+        td.style.color = val < req ? "#C24545" : "#8B93A1";
+        td.textContent = `${val}/${req}`;
+        tr.appendChild(td);
+      }
+      const tdSpacer = document.createElement("td");
+      tdSpacer.colSpan = 9; tdSpacer.className = "foot";
+      tr.appendChild(tdSpacer);
+      foot.appendChild(tr);
+    });
+  }
+}
+
+function renderAll() {
+  populateMonthPickers();
+  renderBrushBar();
+  renderEmpPanel();
+  renderRequests();
+  renderSummary();
+  renderLegend();
+  renderRulesPanel();
+  renderTable();
+}
+
+document.addEventListener("mouseup", () => { isPainting = false; });
+
+// 휴대폰: 붓 모드에서 손가락으로 쓸어서 칠하기
+(function setupTouchPaint() {
+  const wrap = document.querySelector(".table-wrap");
+  let painting = false;
+  const paintAt = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    if (!el || !el.dataset || !el.dataset.emp) return;
+    setCellDirect(el.dataset.emp, Number(el.dataset.day), brushCode);
+    const st = CODE_STYLE[brushCode] || CODE_STYLE[""];
+    el.textContent = brushCode;
+    el.style.background = st.bg;
+    el.style.color = st.fg;
+    el.style.opacity = "1";
+  };
+  wrap.addEventListener("touchstart", (ev) => {
+    if (brushCode === null) return;
+    if (!ev.target.dataset || !ev.target.dataset.emp) return;
+    painting = true;
+    const t = ev.touches[0];
+    paintAt(t.clientX, t.clientY);
+  }, { passive: true });
+  wrap.addEventListener("touchmove", (ev) => {
+    if (!painting) return;
+    ev.preventDefault();
+    const t = ev.touches[0];
+    paintAt(t.clientX, t.clientY);
+  }, { passive: false });
+  const end = () => { if (!painting) return; painting = false; saveState(); renderTable(); };
+  wrap.addEventListener("touchend", end);
+  wrap.addEventListener("touchcancel", end);
+})();
+
+// ---------- events ----------
+document.getElementById("exportMonthBtn").onclick = () => exportExcel("month");
+document.getElementById("exportAllBtn").onclick = () => exportExcel("all");
+document.getElementById("jobAddBtn").onclick = addJobTitle;
+document.getElementById("jobNewInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addJobTitle();
+});
+document.getElementById("toggleEmpBtn").onclick = () => {
+  document.getElementById("empPanel").classList.toggle("open");
+};
+document.getElementById("reqAddBtn").onclick = addRequest;
+document.getElementById("reqInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addRequest();
+});
+document.getElementById("addEmployeeBtn").onclick = () => {
+  const input = document.getElementById("newNameInput");
+  const name = input.value.trim();
+  if (!name) return;
+  state.employees.push({ id: uid(), name });
+  input.value = "";
+  saveState();
+  renderAll();
+};
+document.getElementById("newNameInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("addEmployeeBtn").click();
+});
+document.getElementById("toggleRulesBtn").onclick = () => {
+  document.getElementById("rulesPanel").classList.toggle("open");
+};
+document.getElementById("autoFillBtn").onclick = () => {
+  if (state.employees.length === 0) { flashToast("먼저 직원을 추가해 주세요"); return; }
+  const cells = currentCells();
+  const eff = effectiveRules();
+  eff.requiredOff = eff.rules.guaranteeOff ? holidayInfo(state.year, state.month).total : 0;
+  const result = autoFill(state.employees, cells, state.year, state.month, eff.rules, eff);
+  state.schedules[monthKey(state.year, state.month)] = result;
+  saveState();
+  renderTable();
+  let shortCells = 0;
+  const nD = daysInMonth(state.year, state.month);
+  for (let d = 1; d <= nD; d++) {
+    const dw = dowOf(state.year, state.month, d);
+    const rq = dw === 0 || dw === 6 ? eff.rules.weekend : eff.rules.weekday;
+    SHIFT_TYPES.forEach((c) => {
+      let n = 0;
+      state.employees.forEach((e) => { if (result[e.id][d].code === c) n += 1; });
+      if (n < (rq[c] || 0)) shortCells += 1;
+    });
+  }
+  flashToast(shortCells ? "자동배정 완료 · 인원이 부족한 칸 " + shortCells + "개 (표 아래 빨간 표시)" : "자동배정 완료");
+};
+document.getElementById("clearAutoBtn").onclick = () => {
+  const cells = currentCells();
+  const nDays = daysInMonth(state.year, state.month);
+  const cleared = {};
+  state.employees.forEach((e) => {
+    cleared[e.id] = {};
+    for (let d = 1; d <= nDays; d++) {
+      const c = cells[e.id] && cells[e.id][d];
+      cleared[e.id][d] = c && c.locked ? { ...c } : { code: "", locked: false };
+    }
+  });
+  state.schedules[monthKey(state.year, state.month)] = cleared;
+  saveState();
+  renderTable();
+  flashToast("자동배정 결과를 지웠어요 (고정 셀은 유지됨)");
+};
+document.getElementById("clearAllBtn").onclick = () => {
+  state.schedules[monthKey(state.year, state.month)] = {};
+  saveState();
+  renderTable();
+  flashToast("전체 초기화했어요");
+};
+
+// ---------- auth UI ----------
+window.updateAuthUI = function (info) {
+  const dot = document.getElementById("authDot");
+  const status = document.getElementById("authStatus");
+  const form = document.getElementById("authForm");
+  const logout = document.getElementById("logoutBtn");
+  const note = document.getElementById("authNote");
+  if (!info.configured) {
+    dot.className = "auth-dot";
+    status.textContent = "서버 미설정 — 이 브라우저에만 저장 중";
+    form.style.display = "none"; logout.style.display = "none";
+    note.textContent = "Firebase 설정값을 넣으면 로그인 기능이 켜져요.";
+  } else if (info.user) {
+    dot.className = "auth-dot on";
+    status.textContent = info.user + " 로그인됨";
+    form.style.display = "none"; logout.style.display = "";
+    note.textContent = "변경 내용이 서버에 자동 저장돼요.";
+  } else {
+    dot.className = "auth-dot";
+    status.textContent = "로그아웃 상태 — 이 브라우저에만 저장 중";
+    form.style.display = "inline-flex"; logout.style.display = "none";
+    note.textContent = "";
+  }
+};
+
+async function runAuth(kind) {
+  const email = document.getElementById("authEmail").value.trim();
+  const pw = document.getElementById("authPassword").value;
+  if (!email || !pw) { flashToast("이메일과 비밀번호를 입력해 주세요"); return; }
+  try {
+    await window.cloud[kind](email, pw);
+    document.getElementById("authPassword").value = "";
+  } catch (err) {
+    flashToast(err && err.message ? err.message : "로그인에 실패했어요");
+  }
+}
+document.getElementById("loginBtn").onclick = () => runAuth("signIn");
+document.getElementById("signupBtn").onclick = () => runAuth("signUp");
+document.getElementById("logoutBtn").onclick = () => window.cloud && window.cloud.signOut();
+document.getElementById("authPassword").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") runAuth("signIn");
+});
+
+// ---------- init ----------
+renderAll();
+</script>
+
+<script type="module">
+// ▼▼ Firebase 콘솔 > 프로젝트 설정 > 내 앱(웹)에서 복사한 값을 여기에 붙여넣으세요 ▼▼
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDr87T1ceDAPRhjfdWuMcSEdTEaSCmDkU8",
+  authDomain: "index-89ab2.firebaseapp.com",
+  projectId: "index-89ab2",
+  appId: "1:796431738207:web:cd4afb2186446ea73d82ea",
+};
+// ▲▲ 비워두면 로그인 없이 이 브라우저에만 저장돼요 ▲▲
+
+const ERR = {
+  "auth/invalid-credential": "이메일 또는 비밀번호가 맞지 않아요",
+  "auth/invalid-email": "이메일 형식을 확인해 주세요",
+  "auth/email-already-in-use": "이미 가입된 이메일이에요",
+  "auth/weak-password": "비밀번호는 6자 이상이어야 해요",
+  "auth/too-many-requests": "시도가 너무 많아요. 잠시 후 다시 해주세요",
+  "auth/network-request-failed": "네트워크 연결을 확인해 주세요",
+};
+const niceError = (e) => new Error(ERR[e.code] || ("오류: " + (e.code || e.message)));
+
+if (!FIREBASE_CONFIG.apiKey) {
+  window.cloud = { isSignedIn: () => false, saveDebounced() {} };
+  window.updateAuthUI({ configured: false });
+} else {
+  try {
+    const V = "10.12.2";
+    const appMod = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+    const authMod = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+    const fsMod = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+
+    const app = appMod.initializeApp(FIREBASE_CONFIG);
+    const auth = authMod.getAuth(app);
+    const db = fsMod.getFirestore(app);
+    let loaded = false;
+    let timer = null;
+
+    const docRef = () => fsMod.doc(db, "users", auth.currentUser.uid);
+
+    async function push(state) {
+      await fsMod.setDoc(docRef(), { data: JSON.stringify(state), updatedAt: Date.now() });
+    }
+
+    window.cloud = {
+      isSignedIn: () => !!auth.currentUser && loaded,
+      saveDebounced(state) {
+        clearTimeout(timer);
+        timer = setTimeout(() => { push(state).catch(() => {}); }, 800);
+      },
+      async signIn(email, pw) {
+        try { await authMod.signInWithEmailAndPassword(auth, email, pw); } catch (e) { throw niceError(e); }
+      },
+      async signUp(email, pw) {
+        try { await authMod.createUserWithEmailAndPassword(auth, email, pw); } catch (e) { throw niceError(e); }
+      },
+      async signOut() { await authMod.signOut(auth); },
+    };
+
+    authMod.onAuthStateChanged(auth, async (user) => {
+      loaded = false;
+      if (!user) { window.updateAuthUI({ configured: true, user: null }); return; }
+      try {
+        const snap = await fsMod.getDoc(docRef());
+        if (snap.exists() && snap.data().data) {
+          window.applyRemoteState(JSON.parse(snap.data().data));   // 서버 데이터 우선
+        } else {
+          await push(window.getLocalState());                      // 처음 로그인: 지금 데이터를 서버에 올림
+        }
+        loaded = true;
+        window.updateAuthUI({ configured: true, user: user.email });
+      } catch (e) {
+        window.updateAuthUI({ configured: true, user: null });
+        alert("서버에서 데이터를 불러오지 못했어요. Firestore 규칙/설정을 확인해 주세요.\n(" + (e.code || e.message) + ")");
+      }
+    });
+  } catch (e) {
+    window.cloud = { isSignedIn: () => false, saveDebounced() {} };
+    window.updateAuthUI({ configured: false });
+  }
+}
+</script>
+</body>
+</html>
