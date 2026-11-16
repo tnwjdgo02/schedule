@@ -164,6 +164,7 @@
   .job-input { width: 92px; padding: 5px 8px; border: 1px solid #DDE1E8; border-radius: 8px; font-size: 12px; }
   .job-tag { font-size: 10px; color: #6B7280; background: #F1F4F9; padding: 1px 6px; border-radius: 999px; margin-left: 4px; white-space: nowrap; }
   .job-select { padding: 5px 8px; border: 1px solid #DDE1E8; border-radius: 8px; font-size: 12px; background: #fff; min-width: 92px; }
+  th.total.sub { color: #4B5563; font-weight: 700; padding: 6px 4px; min-width: 26px; white-space: nowrap; border-top: 1px solid #E7E9EF; }
 </style>
 </head>
 <body>
@@ -173,6 +174,7 @@
     <div class="eyebrow">SHIFT SCHEDULER</div>
     <h1>근무표 자동배정기</h1>
     <p class="sub">휴무·연차·고정근무만 지정하면 나머지 칸을 규칙에 맞춰 채워드려요.</p>
+    <p class="sub" style="margin-top:2px; color:#9AA1AC; font-size:11px;">버전 11.13-e</p>
   </div>
   <div class="month-picker">
     <select id="yearSelect"></select>
@@ -260,11 +262,16 @@
       </label>
     </div>
     <div>
-      <div class="rules-label">문장 속 "주간"이 뜻하는 코드</div>
+      <div class="rules-label">주간 코드</div>
       <select id="dayCode" class="rules-select">
         <option value="D">D</option><option value="S">S</option><option value="E">E</option><option value="N">N</option>
       </select>
-      <div class="rules-help">배정 요청 문장에 "주간"이라고 쓰면 어떤 코드(D·S·E·N)로 볼지 정해요. 기본값은 S</div>
+      <div class="rules-help">팀장·계장 규칙과 요청 문장의 "주간"에서 쓰는 코드예요. 기본값은 S</div>
+    </div>
+    <div>
+      <div class="rules-label">직책 규칙 (팀장 · 계장)</div>
+      <label class="check-row"><input type="checkbox" id="deputyCover" /><span>팀장은 주간 근무만, 팀장이 쉬는 날은 계장이 주간 근무</span></label>
+      <div class="rules-help">직원별 설정에서 직책을 "팀장", "계장"으로 지정해야 적용돼요. 평일에는 팀장이 주간 근무, 주말·공휴일이나 팀장이 쉬는 날에는 계장이 주간 근무예요.</div>
     </div>
     <div>
       <div class="rules-label">근무 사이 최소 휴식시간</div>
@@ -343,6 +350,7 @@ const DEFAULT_RULES = {
   maxConsecutiveNight: 3,
   dayCode: "S",
   guaranteeOff: true,
+  deputyCover: true,
   unitName: "1u",
   minRestHours: 11,
   shiftTimes: {
@@ -458,11 +466,16 @@ function autoFill(employees, cells, year, month, rules, extras) {
   const forbid = extras.forbid || {};
   const only = extras.only || {};
   const blockN = Math.max(1, extras.nightBlock || 1);
+  const pubSet = new Set(extras.holidayDays || []);
   const reserved = {};
   employees.forEach((e) => { reserved[e.id] = {}; });
   const allowedMap = {};
   employees.forEach((e) => { if (Array.isArray(e.allowed)) allowedMap[e.id] = new Set(e.allowed); });
+  const dcode0 = rules.dayCode || "S";
+  const pairOn = !!rules.deputyCover && employees.some((e) => e.title === "팀장") && employees.some((e) => e.title === "계장");
+  const leadSet = new Set(pairOn ? employees.filter((e) => e.title === "팀장").map((e) => e.id) : []);
   const canDo = (id, shift) =>
+    !(leadSet.has(id) && shift !== dcode0) &&
     !(allowedMap[id] && !allowedMap[id].has(shift)) &&
     !(only[id] && !only[id].has(shift)) && !(forbid[id] && forbid[id].has(shift));
   const nDays = daysInMonth(year, month);
@@ -496,6 +509,27 @@ function autoFill(employees, cells, year, month, rules, extras) {
     cap[e.id] = Math.max(0, free - Math.max(0, requiredOff - lockedOff));
     autoUsed[e.id] = 0;
   });
+
+  // 계장이 팀장 대신 주간 근무를 서야 할 날(주말·공휴일·팀장 휴가)만큼은 계장의 근무 가능일을 미리 남겨 둠
+  const dcode = rules.dayCode || "S";
+  const leadsAll = employees.filter((e) => e.title === "팀장");
+  const hasPair = !!rules.deputyCover && leadsAll.length > 0 && employees.some((e) => e.title === "계장");
+  const futureCover = Array(nDays + 2).fill(0);
+  const needArr = Array(nDays + 2).fill(0);
+  if (hasPair) {
+    const need = needArr;
+    for (let dd = 1; dd <= nDays; dd++) {
+      const w = dowOf(year, month, dd);
+      const restDay = w === 0 || w === 6 || pubSet.has(dd);
+      const lockedS = leadsAll.some((e) => next[e.id][dd].locked && next[e.id][dd].code === dcode);
+      const allLockedAway = leadsAll.every((e) => next[e.id][dd].locked && next[e.id][dd].code !== dcode);
+      if (!lockedS && (restDay || allLockedAway)) need[dd] = 1;
+    }
+    for (let dd = nDays - 1; dd >= 0; dd--) futureCover[dd] = futureCover[dd + 1] + need[dd + 1];
+  }
+  const reserveBlocked = (e, dd) => hasPair && e.title === "계장" && cap[e.id] - autoUsed[e.id] <= futureCover[dd];
+  // 내일 계장이 주간 근무를 서야 하면, 오늘 그와 휴식시간이 맞지 않는 근무(예: 저녁·야간)는 배정하지 않음
+  const blocksTomorrowCover = (e, dd, shift) => hasPair && e.title === "계장" && needArr[dd + 1] === 1 && !gapOk(shift, dcode);
 
   const shiftCount = {}, totalCount = {}, consecWork = {}, consecNight = {};
   employees.forEach((e) => {
@@ -541,6 +575,38 @@ function autoFill(employees, cells, year, month, rules, extras) {
     });
 
 
+    // --- 직책 규칙: 평일엔 팀장이 주간 근무, 팀장이 주간 근무가 아닌 날엔 계장이 주간 근무 ---
+    let leadBlockS = false;
+    if (rules.deputyCover) {
+      const dc = rules.dayCode || "S";
+      const leads = employees.filter((e) => e.title === "팀장");
+      const deps = employees.filter((e) => e.title === "계장");
+      if (leads.length && deps.length) {
+        const restDay = isWeekend || pubSet.has(d);
+        const give = (e) => {
+          next[e.id][d] = { code: dc, locked: false };
+          assignedToday.add(e.id);
+          shiftCount[e.id][dc] += 1; totalCount[e.id] += 1; autoUsed[e.id] += 1;
+        };
+        const eligible = (e, strictLimit) => !assignedToday.has(e.id) && canDo(e.id, dc) && restOk(e.id, d, dc) &&
+          autoUsed[e.id] < cap[e.id] && (!strictLimit || consecWork[e.id] < rules.maxConsecutiveWork);
+        const byFair = (a, b) => (shiftCount[a.id][dc] - shiftCount[b.id][dc]) || (totalCount[a.id] - totalCount[b.id]);
+        let leadOnS = leads.some((e) => next[e.id][d].code === dc);        // 직접 고정한 근무 포함
+        if (!leadOnS && !restDay) {
+          const lead = leads.find((e) => eligible(e, true));
+          if (lead) { give(lead); leadOnS = true; }
+        }
+        if (!leadOnS) {
+          leadBlockS = true;                                                 // 팀장은 오늘 주간 근무 안 함
+          if (!deps.some((e) => next[e.id][d].code === dc)) {
+            const cand = deps.filter((e) => eligible(e, true)).sort(byFair)[0] ||
+                         deps.filter((e) => eligible(e, false)).sort(byFair)[0];
+            if (cand) give(cand);
+          }
+        }
+      }
+    }
+
     SHIFT_TYPES.forEach((shift) => {
       const already = employees.filter((e) => assignedToday.has(e.id) && next[e.id][d].code === shift).length;
       let need = (req[shift] || 0) - already;
@@ -550,6 +616,9 @@ function autoFill(employees, cells, year, month, rules, extras) {
         if (assignedToday.has(e.id)) return false;
         if (forcedOff.has(e.id) && shift !== "N") return false;
         if (!canDo(e.id, shift)) return false;
+        if (leadBlockS && shift === (rules.dayCode || "S") && e.title === "팀장") return false;
+        if (reserveBlocked(e, d)) return false;
+        if (blocksTomorrowCover(e, d, shift)) return false;
         if (!restOk(e.id, d, shift)) return false;
         if (autoUsed[e.id] >= cap[e.id]) return false;
         if (shift === "N" && blockN > 1 && consecNight[e.id] > 0) return false; // 묶음 모드: 이어지는 날은 예약으로만
@@ -558,7 +627,7 @@ function autoFill(employees, cells, year, month, rules, extras) {
         return true;
       });
       if (pool.length < need) {
-        pool = employees.filter((e) => !assignedToday.has(e.id) && (shift === "N" || !forcedOff.has(e.id)) && canDo(e.id, shift) && restOk(e.id, d, shift) && autoUsed[e.id] < cap[e.id] && !(shift === "N" && blockN > 1 && consecNight[e.id] > 0));
+        pool = employees.filter((e) => !assignedToday.has(e.id) && (shift === "N" || !forcedOff.has(e.id)) && canDo(e.id, shift) && restOk(e.id, d, shift) && autoUsed[e.id] < cap[e.id] && !(leadBlockS && shift === (rules.dayCode || "S") && e.title === "팀장") && !reserveBlocked(e, d) && !blocksTomorrowCover(e, d, shift) && !(shift === "N" && blockN > 1 && consecNight[e.id] > 0));
       }
 
       pool.sort((a, b) => {
@@ -941,12 +1010,19 @@ function renderSummary() {
     ["직원별 제한", limited.length
       ? limited.map((e) => escapeHtml(e.name) + ": " + h((e.allowed.join("·") || "없음") + "만 가능"))
       : ["제한 없음 (모두 D·S·E·N 가능)"]],
+    ["직책 규칙", [
+      r.deputyCover
+        ? "팀장은 " + h(r.dayCode || "S") + " 근무만, 팀장이 " + h(r.dayCode || "S") + " 근무가 아닌 날은 계장이 " + h(r.dayCode || "S") + " 근무 (평일은 팀장, 주말·공휴일·팀장 휴가는 계장)" +
+          (state.employees.some((e) => e.title === "팀장") && state.employees.some((e) => e.title === "계장")
+            ? "" : " — 직원별 설정에서 팀장·계장 직책을 지정하면 적용돼요")
+        : "팀장·계장 규칙: " + h("꺼짐"),
+    ]],
     ["형평성", ["같은 근무를 적게 한 사람을 먼저 배정하고, 직접 고정한 근무도 횟수에 포함해요."]],
     ["문장으로 추가한 요청", reqs.length
       ? reqs.map((q) => h(q.text) + " → " + h(describeRequest(q.spec)))
       : ["없음"]],
     ["알아두세요", [
-      "인원이 모자라면 연속 근무·연속 야간 한도는 넘길 수 있어요. 직원별 가능 근무, 휴식시간, 휴무 보장은 끝까지 지켜요.",
+      "인원이 모자라거나 팀장 대체 근무가 필요하면 연속 근무·연속 야간 한도는 넘길 수 있어요. 직원별 가능 근무, 휴식시간, 휴무 보장은 끝까지 지켜요.",
       "전월 근무는 반영하지 않아서, 매월 1일은 연속 근무 0일에서 시작해요.",
     ]],
   ];
@@ -1323,6 +1399,9 @@ function renderRulesPanel() {
   const dayCodeSel = document.getElementById("dayCode");
   dayCodeSel.value = state.rules.dayCode;
   dayCodeSel.onchange = () => { state.rules.dayCode = dayCodeSel.value; saveState(); };
+  const dcv = document.getElementById("deputyCover");
+  dcv.checked = !!state.rules.deputyCover;
+  dcv.onchange = () => { state.rules.deputyCover = dcv.checked; saveState(); };
 
   const un = document.getElementById("unitName");
   un.value = state.rules.unitName || "";
@@ -1458,23 +1537,33 @@ function renderTable() {
   const foot = document.getElementById("tableFoot");
   head.innerHTML = ""; body.innerHTML = ""; foot.innerHTML = "";
 
-  // head
+  // head (1줄: 직원·날짜·집계 / 2줄: 요일·집계 구분)
   const headRow = document.createElement("tr");
-  headRow.innerHTML = `<th class="name">직원</th>`;
+  const headRow2 = document.createElement("tr");
+  headRow.innerHTML = `<th class="name" rowspan="2">직원</th>`;
   for (let d = 1; d <= nDays; d++) {
     const dow = dowOf(year, month, d);
     const bg = dow === 0 ? "#FBE9EF" : dow === 6 ? "#E7EFFB" : "#F6F7FA";
     const fg = dow === 0 ? "#B23A5E" : dow === 6 ? "#2A5AA8" : "#5B6472";
     const th = document.createElement("th");
-    th.className = "day";
-    th.style.background = bg; th.style.color = fg;
-    th.innerHTML = `<div>${d}</div><small>${WEEKDAY_LABEL[dow]}</small>`;
+    th.className = "day"; th.style.background = bg; th.style.color = fg; th.style.paddingBottom = "0";
+    th.textContent = d;
     headRow.appendChild(th);
+    const th2 = document.createElement("th");
+    th2.className = "day"; th2.style.background = bg; th2.style.color = fg; th2.style.paddingTop = "0";
+    th2.innerHTML = `<small>${WEEKDAY_LABEL[dow]}</small>`;
+    headRow2.appendChild(th2);
   }
   const totalTh = document.createElement("th");
   totalTh.className = "total"; totalTh.colSpan = 9; totalTh.textContent = "집계";
   headRow.appendChild(totalTh);
+  ["D", "S", "E", "N", "연", "휴무", "병", "공", "근무일"].forEach((t) => {
+    const th = document.createElement("th");
+    th.className = "total sub"; th.textContent = t;
+    headRow2.appendChild(th);
+  });
   head.appendChild(headRow);
+  head.appendChild(headRow2);
 
   // body
   if (employees.length === 0) {
@@ -1674,6 +1763,7 @@ document.getElementById("autoFillBtn").onclick = () => {
   const cells = currentCells();
   const eff = effectiveRules();
   eff.requiredOff = eff.rules.guaranteeOff ? holidayInfo(state.year, state.month).total : 0;
+  eff.holidayDays = holidayInfo(state.year, state.month).pubs;
   const result = autoFill(state.employees, cells, state.year, state.month, eff.rules, eff);
   state.schedules[monthKey(state.year, state.month)] = result;
   saveState();
@@ -1689,7 +1779,21 @@ document.getElementById("autoFillBtn").onclick = () => {
       if (n < (rq[c] || 0)) shortCells += 1;
     });
   }
-  flashToast(shortCells ? "자동배정 완료 · 인원이 부족한 칸 " + shortCells + "개 (표 아래 빨간 표시)" : "자동배정 완료");
+  let coverMissing = 0;
+  if (eff.rules.deputyCover) {
+    const dcd = eff.rules.dayCode || "S";
+    const lds = state.employees.filter((e) => e.title === "팀장");
+    const dps = state.employees.filter((e) => e.title === "계장");
+    if (lds.length && dps.length) {
+      for (let d = 1; d <= nD; d++) {
+        if (!lds.some((e) => result[e.id][d].code === dcd) && !dps.some((e) => result[e.id][d].code === dcd)) coverMissing += 1;
+      }
+    }
+  }
+  const notes = [];
+  if (shortCells) notes.push("인원 부족 칸 " + shortCells + "개 (표 아래 빨간 표시)");
+  if (coverMissing) notes.push("팀장 없는 날 계장이 주간 근무를 못 하는 날 " + coverMissing + "일");
+  flashToast(notes.length ? "자동배정 완료 · " + notes.join(" · ") : "자동배정 완료");
 };
 document.getElementById("clearAutoBtn").onclick = () => {
   const cells = currentCells();
